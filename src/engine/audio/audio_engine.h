@@ -4,13 +4,15 @@
 #include <functional>
 #include <vector>
 
+#include "engine/audio/spatial_audio.h"
+
 struct SDL_AudioStream;
 
 namespace pt::audio {
 
 class AudioOutput {
 public:
-    using RenderFunction = std::function<void(float* interleaved, uint32_t frames, uint32_t channels)>;
+    using RenderFunction = std::function<void(float* interleaved, uint32_t frames, uint32_t channels, SpatialAudioSink* spatial_sink)>;
 
     AudioOutput() = default;
     ~AudioOutput();

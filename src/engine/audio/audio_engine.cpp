@@ -174,7 +174,7 @@ void AudioOutput::Callback(void* user, SDL_AudioStream* stream, int additional, 
         return;
     }
     output->buffer_.resize(static_cast<size_t>(frames) * channels);
-    output->render_(output->buffer_.data(), frames, channels);
+    output->render_(output->buffer_.data(), frames, channels, nullptr);
     SDL_PutAudioStreamData(stream, output->buffer_.data(), static_cast<int>(output->buffer_.size() * sizeof(float)));
 }
 

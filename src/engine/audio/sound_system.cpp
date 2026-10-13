@@ -49,7 +49,9 @@ bool SoundSystem::Init(Vfs& vfs, bool open_device, bool surround_output, bool sp
         auto output = std::make_unique<AudioOutput>();
         SoundEngine* engine = engine_.get();
         if (output->Open(kOutputRate, surround_output, spatial_audio,
-                         [engine](float* out, uint32_t frames, uint32_t channels) { engine->Render(out, frames, channels); })) {
+                         [engine](float* out, uint32_t frames, uint32_t channels, SpatialAudioSink* sink) {
+                             engine->RenderWithSpatialSink(out, frames, channels, sink);
+                         })) {
             output_ = std::move(output);
         } else {
             LogWarn("audio: no playback device, offline rendering only");
