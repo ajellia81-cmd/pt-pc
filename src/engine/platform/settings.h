@@ -39,6 +39,9 @@ struct AppSettings {
     struct Audio {
         float volume = 1.0f;
         bool surround = false;
+        // Windows Spatial Sound path. When the endpoint cannot activate it (including a non-Atmos endpoint), the
+        // audio output deliberately falls back to the normal SDL stereo/5.1/7.1 path.
+        bool dolby_atmos = false;
         bool controller_speaker = false;
         float controller_speaker_volume = 0.5f;
     } audio;

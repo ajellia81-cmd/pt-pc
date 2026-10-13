@@ -2058,6 +2058,7 @@ public:
         volume.wrap = false;
         sound.rows.push_back(std::move(volume));
         sound.rows.push_back(Row(kSurround,"pc_surround",OffOn(),s.audio.surround?1:0,"pc_note_surround"));
+        sound.rows.push_back(Row(kDolbyAtmos, "pc_dolby_atmos", OffOn(), s.audio.dolby_atmos ? 1 : 0, "pc_note_dolby_atmos"));
         sound.rows.push_back(Row(kControllerSpeaker, "pc_controller_speaker", OffOn(), s.audio.controller_speaker ? 1 : 0,
                                  "pc_note_controller_speaker"));
         pt::game::PcSettingRow controller_speaker_volume = Row(
@@ -2260,6 +2261,10 @@ public:
         case kSurround:
             if (s.audio.surround != (value == 1)) game_.ShowNoticeDialog("pc_restart_needed");
             s.audio.surround = value == 1;
+            break;
+        case kDolbyAtmos:
+            if (s.audio.dolby_atmos != (value == 1)) game_.ShowNoticeDialog("pc_restart_needed");
+            s.audio.dolby_atmos = value == 1;
             break;
         case kControllerSpeaker:
             s.audio.controller_speaker = value == 1;
@@ -2702,7 +2707,7 @@ private:
     enum RowId {
         kDisplayMode,
         kResolution,
-        kVsync, kFpsLimit, kHdr, kSurround, kControllerSpeaker, kControllerSpeakerVolume, kRumbleProfile,
+        kVsync, kFpsLimit, kHdr, kSurround, kDolbyAtmos, kControllerSpeaker, kControllerSpeakerVolume, kRumbleProfile,
         kFocusPause,
         kFocusMute,
         kUpscaler,

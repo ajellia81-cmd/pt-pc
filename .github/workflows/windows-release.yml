@@ -1,0 +1,40 @@
+name: Windows x64 Release
+
+on:
+  push:
+    branches: [main, feature/windows-spatial-atmos]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Vulkan SDK and build tools
+        shell: pwsh
+        run: |
+          choco install vulkan-sdk --no-progress -y
+          choco install ninja --no-progress -y
+
+      - name: Configure and build x64 Release
+        shell: cmd
+        run: tools\build_pt.bat release
+
+      - name: Upload executable and runtime files
+        uses: actions/upload-artifact@v4
+        with:
+          name: P.T.PC.Port-windows-x64-Release
+          if-no-files-found: error
+          path: |
+            build/release/pt.exe
+            build/release/*.dll
+            build/release/shaders/**
+            build/release/voice/**
+            build/release/licenses/**
