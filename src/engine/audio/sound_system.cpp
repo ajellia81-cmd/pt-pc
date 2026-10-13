@@ -17,7 +17,7 @@ SoundSystem::~SoundSystem() {
     Shutdown();
 }
 
-bool SoundSystem::Init(Vfs& vfs, bool open_device, bool surround_output) {
+bool SoundSystem::Init(Vfs& vfs, bool open_device, bool surround_output, bool spatial_audio) {
     Shutdown();
     vfs_ = &vfs;
     auto banks = std::make_unique<SoundBankSet>();
@@ -48,7 +48,7 @@ bool SoundSystem::Init(Vfs& vfs, bool open_device, bool surround_output) {
     if (open_device) {
         auto output = std::make_unique<AudioOutput>();
         SoundEngine* engine = engine_.get();
-        if (output->Open(kOutputRate, surround_output,
+        if (output->Open(kOutputRate, surround_output, spatial_audio,
                          [engine](float* out, uint32_t frames, uint32_t channels) { engine->Render(out, frames, channels); })) {
             output_ = std::move(output);
         } else {

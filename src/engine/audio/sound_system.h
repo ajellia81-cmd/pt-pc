@@ -50,7 +50,7 @@ public:
     SoundSystem(const SoundSystem&) = delete;
     SoundSystem& operator=(const SoundSystem&) = delete;
 
-    bool Init(Vfs& vfs, bool open_device, bool surround_output = false);
+    bool Init(Vfs& vfs, bool open_device, bool surround_output = false, bool spatial_audio = false);
     void Shutdown();
 
     PlayingId PostEvent(std::string_view event_name, GameObjectId object = 0);

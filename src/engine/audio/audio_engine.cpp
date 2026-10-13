@@ -14,7 +14,7 @@ AudioOutput::~AudioOutput() {
     Close();
 }
 
-bool AudioOutput::Open(uint32_t sample_rate, bool surround, RenderFunction render) {
+bool AudioOutput::Open(uint32_t sample_rate, bool surround, bool spatial_audio, RenderFunction render) {
     Close();
     if (!SDL_WasInit(SDL_INIT_AUDIO) && !SDL_InitSubSystem(SDL_INIT_AUDIO)) {
         LogError("audio: SDL audio init failed (surround requested: {}): {} (audio drivers built in: {})", surround,
@@ -22,6 +22,11 @@ bool AudioOutput::Open(uint32_t sample_rate, bool surround, RenderFunction rende
         return false;
     }
     render_ = std::move(render);
+#if defined(_WIN32)
+    if (spatial_audio) LogWarn("audio: Dolby Atmos requested but the native Spatial Sound renderer is unavailable; using normal output");
+#else
+    if (spatial_audio) LogInfo("audio: Dolby Atmos requested on a non-Windows build; using normal output");
+#endif
     SDL_AudioSpec preferred_spec{};
     const bool queried = SDL_GetAudioDeviceFormat(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &preferred_spec, nullptr);
     const int preferred_channels = queried ? preferred_spec.channels : -1;

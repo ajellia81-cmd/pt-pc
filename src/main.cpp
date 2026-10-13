@@ -3564,7 +3564,7 @@ int RunGame(App& app, pt::Vfs& vfs) {
     game.SetThirdPerson(app.settings.camera.third_person || options.third_person);
     pt::game::GameSound sound(game);
     std::vector<float> captured;
-    if ((app.window || options.audio_offline) && sound.Init(app.window != nullptr, "Eng", app.settings.audio.surround)) {
+    if ((app.window || options.audio_offline) && sound.Init(app.window != nullptr, "Eng", app.settings.audio.surround, app.settings.audio.dolby_atmos)) {
         sound.System().SetMasterVolume(app.settings.audio.volume);
         if (options.seed) {
             sound.System().SetRandomSeed(options.seed);

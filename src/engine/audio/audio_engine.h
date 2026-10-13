@@ -17,7 +17,7 @@ public:
     AudioOutput(const AudioOutput&) = delete;
     AudioOutput& operator=(const AudioOutput&) = delete;
 
-    bool Open(uint32_t sample_rate, bool surround, RenderFunction render);
+    bool Open(uint32_t sample_rate, bool surround, bool spatial_audio, RenderFunction render);
     void Close();
     bool IsOpen() const { return stream_ != nullptr; }
     uint32_t Channels() const { return channels_; }
