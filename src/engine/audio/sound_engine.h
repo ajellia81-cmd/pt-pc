@@ -18,6 +18,7 @@
 #include "engine/audio/controller_pcm_capture.h"
 #include "engine/audio/motion_generator.h"
 #include "engine/audio/sound_package.h"
+#include "engine/audio/spatial_audio.h"
 #include "engine/audio/wem.h"
 #include "engine/audio/wwise_bank.h"
 
@@ -121,6 +122,8 @@ public:
 
     void Render(float* out, uint32_t frames);
     void Render(float* out, uint32_t frames, uint32_t channels);
+    // Renders the legacy bed while exposing eligible mono 3D voices to a native spatial renderer.
+    void RenderWithSpatialSink(float* out, uint32_t frames, uint32_t channels, SpatialAudioSink* sink);
 
     struct LayerLink {
         const Layer* layer = nullptr;
@@ -595,6 +598,8 @@ private:
     std::atomic<uint32_t> motion_levels_{0};
     std::atomic<bool> frozen_{false};
     bool trace_ = false;
+    SpatialAudioSink* spatial_sink_ = nullptr;
+    std::vector<float> spatial_mono_;
 };
 
 }

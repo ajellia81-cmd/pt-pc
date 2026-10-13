@@ -3175,6 +3175,27 @@ uint32_t SoundEngine::RenderVoice(Voice& v, uint32_t offset, uint32_t frames) {
         v.sc_dry_prev = v.dry_gain;
         v.gain_init = true;
     }
+    // Preserve a mono, post-filter copy for the native Windows spatial path before the legacy speaker matrix folds it.
+    // Effects and the non-spatial bed continue through the normal bus renderer; the Windows sink consumes this synchronously.
+    if (spatial_sink_ && v.channels == 1 && v.node && v.node->positioning && v.node->positioning->has_3d && v.node->positioning->spatialized) {
+        const float normalization = v.mix_l[0] + v.mix_r[0];
+        if (normalization > 1e-6f) {
+            spatial_mono_.resize(produced);
+            const auto object = objects_.find(v.object);
+            static const ObjectState kEmptyObject;
+            const ObjectState& state = object == objects_.end() ? kEmptyObject : object->second;
+            const glm::vec3 relative = EmitterPosition(v, state) - listener_position_;
+            const glm::vec3 position(glm::dot(relative, listener_right_), glm::dot(relative, listener_up_),
+                                     glm::dot(relative, listener_forward_));
+            for (uint32_t i = 0; i < produced; ++i) {
+                const float w = (static_cast<float>(i) + 1.0f) / static_cast<float>(produced);
+                const float fade = fade0 + (fade1 - fade0) * w;
+                const float gain = (v.sc_dry_prev + (v.dry_gain - v.sc_dry_prev) * w) * fade;
+                spatial_mono_[i] = (out_l[i] + out_r[i]) / normalization * gain;
+            }
+            spatial_sink_->SubmitMono(spatial_mono_, position);
+        }
+    }
     const float inv = 1.0f / static_cast<float>(produced);
     const float block_inv = 1.0f / static_cast<float>(frames);
     BusRuntime* bus = Bus(v.bus_id);
@@ -3697,6 +3718,13 @@ void SoundEngine::Render(float* out, uint32_t frames, uint32_t output_channels) 
 #else
     _mm_setcsr(csr);
 #endif
+}
+
+void SoundEngine::RenderWithSpatialSink(float* out, uint32_t frames, uint32_t channels, SpatialAudioSink* sink) {
+    // AudioOutput invokes this synchronously from its render period, so the sink cannot retain pointers to mixer buffers.
+    spatial_sink_ = sink;
+    Render(out, frames, channels);
+    spatial_sink_ = nullptr;
 }
 
 }
