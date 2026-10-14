@@ -24,7 +24,17 @@ jobs:
       - name: Install Vulkan SDK and build tools
         shell: pwsh
         run: |
-          choco install vulkan-sdk --no-progress -y
+          $ErrorActionPreference = 'Stop'
+          $installed = $false
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            choco install vulkan-sdk --no-progress -y
+            if ($LASTEXITCODE -eq 0 -and (Get-ChildItem 'C:\VulkanSDK' -Directory -ErrorAction SilentlyContinue | Where-Object { Test-Path (Join-Path $_.FullName 'Bin\glslc.exe') })) {
+              $installed = $true
+              break
+            }
+            Start-Sleep -Seconds (15 * $attempt)
+          }
+          if (-not $installed) { throw 'Vulkan SDK installation did not provide glslc.exe' }
           choco install ninja --no-progress -y
 
       - name: Bundle Noto Sans KR
