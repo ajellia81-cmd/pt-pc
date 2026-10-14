@@ -342,6 +342,12 @@ if(MSVC)
  target_compile_options(pt_multilingual_test PRIVATE /utf-8)
 endif()
 
+add_executable(pt_korean_text_layout_test tests/korean_text_layout_test.cpp)
+target_link_libraries(pt_korean_text_layout_test PRIVATE pt_engine)
+if(MSVC)
+ target_compile_options(pt_korean_text_layout_test PRIVATE /utf-8)
+endif()
+
 target_compile_definitions(pt_engine PUBLIC PT_FONT_DIR="${CMAKE_SOURCE_DIR}/assets/fonts")
 add_custom_command(TARGET pt POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/assets/fonts" "$<TARGET_FILE_DIR:pt>/fonts")
 # the bundled fonts' SIL OFL notices also go to licenses/, beside the SDK notices

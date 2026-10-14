@@ -35,7 +35,7 @@ struct UnicodeFontState {
 namespace {
 // The added languages' fonts: Noto Sans (Latin, Cyrillic), Noto Sans SC, and for Arabic Noto Kufi Arabic in the menus and
 // Noto Naskh Arabic in the subtitles (the Naskh book hand reads best in running text, the Kufi matches the menus' plain sans)
-constexpr const wchar_t* kBundledFonts[] = {L"NotoSans.ttf", L"NotoSansSC.ttf", L"NotoKufiArabic.ttf", L"NotoNaskhArabic.ttf"};
+constexpr const wchar_t* kBundledFonts[] = {L"NotoSans.ttf", L"NotoSansSC.ttf", L"NotoSansKR.ttf", L"NotoKufiArabic.ttf", L"NotoNaskhArabic.ttf"};
 struct PrivateFonts {
     std::vector<std::wstring> paths;
     PrivateFonts() {

@@ -59,10 +59,11 @@ jobs:
       - name: Run audio and settings checks
         shell: cmd
         run: |
-          cmake --build build\release --target pt_audio_channel_layout_test pt_settings_roundtrip_test
+          cmake --build build\release --target pt_audio_channel_layout_test pt_settings_roundtrip_test pt_korean_text_layout_test
           build\release\pt_audio_channel_layout_test.exe
           mkdir build\release\test-output
           build\release\pt_settings_roundtrip_test.exe build\release\test-output
+          build\release\pt_korean_text_layout_test.exe
 
       - name: Upload executable and runtime files
         if: success()

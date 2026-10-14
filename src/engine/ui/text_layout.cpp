@@ -11,7 +11,9 @@ bool StrongRtl(uint32_t c) {
 }
 
 bool Cjk(uint32_t c) {
-    return (c >= 0x2E80 && c <= 0x9FFF) || (c >= 0xF900 && c <= 0xFAFF) || (c >= 0xFF00 && c <= 0xFFEF) || (c >= 0x20000 && c <= 0x3FFFF);
+    // Hangul follows the same no-space line-break behaviour as CJK ideographs.
+    return (c >= 0x1100 && c <= 0x11FF) || (c >= 0x2E80 && c <= 0x9FFF) || (c >= 0xAC00 && c <= 0xD7AF) ||
+           (c >= 0xF900 && c <= 0xFAFF) || (c >= 0xFF00 && c <= 0xFFEF) || (c >= 0x20000 && c <= 0x3FFFF);
 }
 
 // CJK line breaking (kinsoku): no line starts with closing punctuation and none ends with opening punctuation
