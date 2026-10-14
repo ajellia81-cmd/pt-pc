@@ -17,7 +17,7 @@ class AudioOutput {
 public:
     using RenderFunction = std::function<void(float* interleaved, uint32_t frames, uint32_t channels, SpatialAudioSink* spatial_sink)>;
 
-    AudioOutput() = default;
+    AudioOutput();
     ~AudioOutput();
     AudioOutput(const AudioOutput&) = delete;
     AudioOutput& operator=(const AudioOutput&) = delete;

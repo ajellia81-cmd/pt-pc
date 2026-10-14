@@ -165,6 +165,8 @@ private:
 };
 #endif
 
+AudioOutput::AudioOutput() = default;
+
 AudioOutput::~AudioOutput() {
     Close();
 }
