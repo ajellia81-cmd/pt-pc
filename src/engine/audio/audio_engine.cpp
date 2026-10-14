@@ -99,7 +99,8 @@ public:
     ~WindowsSpatialOutput() override { Close(); }
 
     bool SubmitMono(std::span<const float> samples, const glm::vec3& position) override {
-        if (next_dynamic_ >= dynamic_.size()) return false;
+        // BeginUpdatingAudioObjects grants only this many dynamic buffers for the current render period.
+        if (next_dynamic_ >= dynamic_buffers_.size()) return false;
         DynamicBuffer& buffer = dynamic_buffers_[next_dynamic_++];
         if (!buffer.samples) return false;
         const size_t frames = buffer.frames;
@@ -114,6 +115,13 @@ public:
 
 private:
     void Pump() {
+        // The stream was activated in an MTA. Every worker thread that uses its COM interfaces must also join it.
+        const HRESULT apartment = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+        if (FAILED(apartment) && apartment != RPC_E_CHANGED_MODE) {
+            running_ = false;
+            return;
+        }
+        const bool uninitialize = SUCCEEDED(apartment);
         const HANDLE waits[2] = {event_, stop_};
         while (WaitForMultipleObjects(2, waits, FALSE, INFINITE) == WAIT_OBJECT_0 && running_) {
             UINT32 available = 0, frames = 0;
@@ -126,8 +134,9 @@ private:
                 break;
             }
             std::memset(left, 0, left_bytes); std::memset(right, 0, right_bytes);
-            dynamic_buffers_.resize(dynamic_.size());
-            for (size_t i = 0; i < dynamic_.size(); ++i) {
+            const size_t dynamic_count = std::min<size_t>(available, dynamic_.size());
+            dynamic_buffers_.resize(dynamic_count);
+            for (size_t i = 0; i < dynamic_count; ++i) {
                 BYTE* bytes = nullptr; UINT32 byte_count = 0;
                 if (SUCCEEDED(dynamic_[i]->GetBuffer(&bytes, &byte_count)) && bytes) {
                     std::memset(bytes, 0, byte_count);
@@ -144,6 +153,7 @@ private:
             if (FAILED(stream_->EndUpdatingAudioObjects())) break;
         }
         running_ = false;
+        if (uninitialize) CoUninitialize();
     }
 
     AudioOutput::RenderFunction render_;
