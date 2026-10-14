@@ -98,11 +98,11 @@ public:
 
     ~WindowsSpatialOutput() override { Close(); }
 
-    void SubmitMono(std::span<const float> samples, const glm::vec3& position) override {
-        if (next_dynamic_ >= dynamic_.size()) return;
+    bool SubmitMono(std::span<const float> samples, const glm::vec3& position) override {
+        if (next_dynamic_ >= dynamic_.size()) return false;
         auto& object = dynamic_[next_dynamic_++];
         BYTE* bytes = nullptr; UINT32 byte_count = 0;
-        if (FAILED(object->GetBuffer(&bytes, &byte_count)) || !bytes) return;
+        if (FAILED(object->GetBuffer(&bytes, &byte_count)) || !bytes) return false;
         const size_t frames = byte_count / sizeof(float);
         float* out = reinterpret_cast<float*>(bytes);
         const size_t copied = std::min(samples.size(), frames);
@@ -110,6 +110,7 @@ public:
         std::fill(out + copied, out + frames, 0.0f);
         object->SetPosition(position.x, position.y, position.z);
         object->SetVolume(1.0f);
+        return true;
     }
 
 private:

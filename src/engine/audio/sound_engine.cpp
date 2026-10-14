@@ -3194,8 +3194,7 @@ uint32_t SoundEngine::RenderVoice(Voice& v, uint32_t offset, uint32_t frames) {
                 const float gain = (v.sc_dry_prev + (v.dry_gain - v.sc_dry_prev) * w) * fade;
                 spatial_mono_[i] = (out_l[i] + out_r[i]) / normalization * gain;
             }
-            spatial_sink_->SubmitMono(spatial_mono_, position);
-            routed_to_spatial = true;
+            routed_to_spatial = spatial_sink_->SubmitMono(spatial_mono_, position);
         }
     }
     const float inv = 1.0f / static_cast<float>(produced);
