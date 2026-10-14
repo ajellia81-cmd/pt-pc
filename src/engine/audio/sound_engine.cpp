@@ -3177,8 +3177,17 @@ uint32_t SoundEngine::RenderVoice(Voice& v, uint32_t offset, uint32_t frames) {
     }
     // Preserve a mono, post-filter copy for the native Windows spatial path before the legacy speaker matrix folds it.
     // Effects and the non-spatial bed continue through the normal bus renderer; the Windows sink consumes this synchronously.
+    // A dynamic spatial object receives a voice before its bus chain. Keep voices with authored intermediate effects
+    // (for example, a radio's EQ/processing) in the conventional 3D bed so their DSP order remains intact.
+    bool has_intermediate_effects = false;
+    for (BusRuntime* effect_bus = Bus(v.bus_id); effect_bus && effect_bus != master_; effect_bus = effect_bus->parent) {
+        if (!effect_bus->effects.empty()) {
+            has_intermediate_effects = true;
+            break;
+        }
+    }
     bool routed_to_spatial = false;
-    if (spatial_sink_ && v.channels == 1 && v.node && v.node->positioning && v.node->positioning->has_3d && v.node->positioning->spatialized) {
+    if (spatial_sink_ && !has_intermediate_effects && v.channels == 1 && v.node && v.node->positioning && v.node->positioning->has_3d && v.node->positioning->spatialized) {
         const float normalization = v.mix_l[0] + v.mix_r[0];
         if (normalization > 1e-6f) {
             spatial_mono_.resize(produced);
