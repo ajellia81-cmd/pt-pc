@@ -375,6 +375,8 @@ private:
         std::array<std::vector<float>, 8> sc_rs;
         float sc_lpf_hist[8][4] = {};
         float sc_dry_prev = 0.0f;
+        // Private copies of authored bus effects for the native spatial object's direct signal.
+        std::vector<std::unique_ptr<Effect>> spatial_effects;
     };
 
     struct BusRuntime {
@@ -513,6 +515,7 @@ private:
     float StateOffset(const std::vector<size_t>& slots, int index) const;
     glm::vec3 EmitterPosition(const Voice& voice, const ObjectState& object) const;
     void UpdateVoiceParams(Voice& voice);
+    void BuildSpatialEffects(Voice& voice);
     void UpdateBuses();
     uint32_t PullSource(Voice& voice, float* left, float* right, uint32_t frames, size_t index);
     uint32_t RenderVoice(Voice& voice, uint32_t offset, uint32_t frames);
@@ -600,6 +603,8 @@ private:
     bool trace_ = false;
     SpatialAudioSink* spatial_sink_ = nullptr;
     std::vector<float> spatial_mono_;
+    std::vector<float> spatial_left_;
+    std::vector<float> spatial_right_;
 };
 
 }
