@@ -339,8 +339,6 @@ SoundEngine::SoundEngine(std::unique_ptr<SoundBankSet> banks) : banks_(std::move
     mix_right_.assign(kBlockFrames, 0.0f);
     voice_left_.assign(kBlockFrames, 0.0f);
     voice_right_.assign(kBlockFrames, 0.0f);
-    spatial_left_.assign(kBlockFrames, 0.0f);
-    spatial_right_.assign(kBlockFrames, 0.0f);
     for (auto& channel : sc_) {
         channel.assign(kBlockFrames, 0.0f);
     }
@@ -1544,7 +1542,6 @@ SoundEngine::Voice* SoundEngine::CreateVoice(NodeInfo* info, const PlayContext& 
     }
     v.sequencer = ctx.sequencer;
     v.item_token = ctx.item_token;
-    BuildSpatialEffects(v);
     if (Sequencer* seq = FindSequencer(ctx.sequencer)) {
         ++seq->items[ctx.item_token];
     }
@@ -1557,23 +1554,6 @@ SoundEngine::Voice* SoundEngine::CreateVoice(NodeInfo* info, const PlayContext& 
     Voice* raw = voice.get();
     voices_.push_back(std::move(voice));
     return raw;
-}
-
-void SoundEngine::BuildSpatialEffects(Voice& v) {
-    // The normal renderer processes child buses first. Mirror that order per object, but leave the shared master
-    // chain alone: applying its limiter/reverb once per object would change the whole mix.
-    for (BusRuntime* bus = Bus(v.bus_id); bus && bus != master_; bus = bus->parent) {
-        Voice::SpatialBusStage stage;
-        stage.bus_id = bus->id;
-        for (const auto& slot : bus->object->fx.slots) {
-            const HircObject* object = banks_->Find(slot.fx_id);
-            if (!object || (object->type != HircType::FxCustom && object->type != HircType::FxShareSet)) continue;
-            if (auto effect = CreateEffect(*static_cast<const FxObject*>(object))) {
-                stage.effects.push_back(std::move(effect));
-            }
-        }
-        v.spatial_bus_stages.push_back(std::move(stage));
-    }
 }
 
 void SoundEngine::SetupSourceRegion(Voice& v, uint64_t begin, uint64_t end, int loop_count) {
@@ -3197,8 +3177,17 @@ uint32_t SoundEngine::RenderVoice(Voice& v, uint32_t offset, uint32_t frames) {
     }
     // Preserve a mono, post-filter copy for the native Windows spatial path before the legacy speaker matrix folds it.
     // Effects and the non-spatial bed continue through the normal bus renderer; the Windows sink consumes this synchronously.
+    // A spatial object receives its direct signal before the shared bus chain. Keep authored effect voices in
+    // the conventional renderer rather than duplicating a shared effect per object, which corrupts the mix.
+    bool has_intermediate_effects = false;
+    for (BusRuntime* effect_bus = Bus(v.bus_id); effect_bus && effect_bus != master_; effect_bus = effect_bus->parent) {
+        if (!effect_bus->effects.empty()) {
+            has_intermediate_effects = true;
+            break;
+        }
+    }
     bool routed_to_spatial = false;
-    if (spatial_sink_ && v.channels == 1 && v.node && v.node->positioning && v.node->positioning->has_3d && v.node->positioning->spatialized) {
+    if (spatial_sink_ && !has_intermediate_effects && v.channels == 1 && v.node && v.node->positioning && v.node->positioning->has_3d && v.node->positioning->spatialized) {
         const float normalization = v.mix_l[0] + v.mix_r[0];
         if (normalization > 1e-6f) {
             spatial_mono_.resize(produced);
@@ -3214,22 +3203,6 @@ uint32_t SoundEngine::RenderVoice(Voice& v, uint32_t offset, uint32_t frames) {
                 const float fade = fade0 + (fade1 - fade0) * w;
                 const float gain = (v.sc_dry_prev + (v.dry_gain - v.sc_dry_prev) * w) * fade;
                 spatial_mono_[i] = (out_l[i] + out_r[i]) / normalization * gain;
-            }
-            if (!v.spatial_bus_stages.empty()) {
-                spatial_left_.assign(spatial_mono_.begin(), spatial_mono_.end());
-                spatial_right_ = spatial_left_;
-                for (auto& stage : v.spatial_bus_stages) {
-                    if (BusRuntime* bus = Bus(stage.bus_id)) {
-                        const float inv = 1.0f / static_cast<float>(produced);
-                        for (uint32_t i = 0; i < produced; ++i) {
-                            const float gain = bus->gain_prev + (bus->gain - bus->gain_prev) * (static_cast<float>(i) + 1.0f) * inv;
-                            spatial_left_[i] *= gain;
-                            spatial_right_[i] *= gain;
-                        }
-                    }
-                    for (auto& effect : stage.effects) effect->Process(spatial_left_.data(), spatial_right_.data(), produced);
-                }
-                for (uint32_t i = 0; i < produced; ++i) spatial_mono_[i] = 0.5f * (spatial_left_[i] + spatial_right_[i]);
             }
             routed_to_spatial = spatial_sink_->SubmitMono(spatial_mono_, position);
         }
