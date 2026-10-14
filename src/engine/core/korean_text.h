@@ -446,6 +446,11 @@ inline constexpr Text kMenu[] = {
     {"pc_mic_err_files","음성 인식 파일이 없습니다. 게임을 다시 설치하거나 복구하세요."}, {"pc_mic_err_runtime","음성 엔진을 불러올 수 없습니다. 원인은 pt.log에서 확인하세요."}, {"pc_mic_err_cpu","이 프로세서는 음성 엔진을 실행할 수 없습니다."}, {"pc_mic_err_model","음성 모델을 불러올 수 없습니다. 원인은 pt.log에서 확인하세요."}, {"pc_mic_err_silent","마이크는 연결됐지만 입력 소리가 감지되지 않습니다. 음소거되어 있지 않은지와 올바른 장치가 선택됐는지 확인하세요."},
 };
 
+inline std::string_view Menu(std::string_view key) {
+    for (const auto& entry : kMenu) if (entry.key == key) return entry.text;
+    return {};
+}
+
 struct Subtitle { uint32_t key; std::initializer_list<std::string_view> lines; };
 
 // Korean copy reviewed against the original Japanese subtitle package.  Timing, categories and
