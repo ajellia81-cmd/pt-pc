@@ -28,8 +28,16 @@ jobs:
           choco install ninja --no-progress -y
 
       - name: Configure and build x64 Release
-        shell: cmd
-        run: tools\build_pt.bat release
+        shell: pwsh
+        run: |
+          & cmd.exe /c tools\build_pt.bat release 2>&1 | Tee-Object -FilePath windows-build.log
+          $code = $LASTEXITCODE
+          if ($code -ne 0) {
+            Get-Content windows-build.log | Select-String -Pattern '(: error |error C[0-9]+|CMake Error|FAILED:|fatal error)' | ForEach-Object {
+              Write-Host "::error::$($_.Line)"
+            }
+            exit $code
+          }
 
       - name: Run audio and settings checks
         shell: cmd
@@ -40,6 +48,7 @@ jobs:
           build\release\pt_settings_roundtrip_test.exe build\release\test-output
 
       - name: Upload executable and runtime files
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: P.T.PC.Port-windows-x64-Release
@@ -50,3 +59,10 @@ jobs:
             build/release/shaders/**
             build/release/voice/**
             build/release/licenses/**
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build-log
+          path: windows-build.log
