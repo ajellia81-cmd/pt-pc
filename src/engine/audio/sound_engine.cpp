@@ -3186,6 +3186,12 @@ uint32_t SoundEngine::RenderVoice(Voice& v, uint32_t offset, uint32_t frames) {
             break;
         }
     }
+    // Dynamic objects bypass the stereo bus renderer, but must retain the same gain chain that
+    // their dry signal would have received on its way to the master.  Without this, a spatial
+    // object skips per-bus attenuation and can hit the endpoint already clipped.
+    BusRuntime* bus = Bus(v.bus_id);
+    const float spatial_chain0 = bus ? bus->chain_prev : 1.0f;
+    const float spatial_chain1 = bus ? bus->chain : 1.0f;
     bool routed_to_spatial = false;
     if (spatial_sink_ && !has_intermediate_effects && v.channels == 1 && v.node && v.node->positioning && v.node->positioning->has_3d && v.node->positioning->spatialized) {
         const float normalization = v.mix_l[0] + v.mix_r[0];
@@ -3201,7 +3207,10 @@ uint32_t SoundEngine::RenderVoice(Voice& v, uint32_t offset, uint32_t frames) {
             for (uint32_t i = 0; i < produced; ++i) {
                 const float w = (static_cast<float>(i) + 1.0f) / static_cast<float>(produced);
                 const float fade = fade0 + (fade1 - fade0) * w;
-                const float gain = (v.sc_dry_prev + (v.dry_gain - v.sc_dry_prev) * w) * fade;
+                const float chain = spatial_chain0 + (spatial_chain1 - spatial_chain0) *
+                                                          (static_cast<float>(offset + i) + 1.0f) /
+                                                          static_cast<float>(frames);
+                const float gain = (v.sc_dry_prev + (v.dry_gain - v.sc_dry_prev) * w) * fade * chain;
                 // The legacy output applies the master gain and clamps the final device samples. Dynamic spatial
                 // objects bypass that final stereo pass, so apply the same endpoint protection here to avoid
                 // over-range samples distorting in the Windows spatial renderer.
@@ -3212,7 +3221,6 @@ uint32_t SoundEngine::RenderVoice(Voice& v, uint32_t offset, uint32_t frames) {
     }
     const float inv = 1.0f / static_cast<float>(produced);
     const float block_inv = 1.0f / static_cast<float>(frames);
-    BusRuntime* bus = Bus(v.bus_id);
     if (controller_pcm_capture_.HasSelectedEvents()) {
         const auto record = playing_.find(v.playing_id);
         if (record != playing_.end()) {
