@@ -27,6 +27,13 @@ jobs:
           choco install vulkan-sdk --no-progress -y
           choco install ninja --no-progress -y
 
+      - name: Bundle Noto Sans KR
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/google/fonts/e9678a5385322c63730122ba464765baad83cfd8/ofl/notosanskr/NotoSansKR%5Bwght%5D.ttf' -OutFile 'assets/fonts/NotoSansKR.ttf'
+          Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/google/fonts/e9678a5385322c63730122ba464765baad83cfd8/ofl/notosanskr/OFL.txt' -OutFile 'assets/fonts/OFL-NotoSansKR.txt'
+          if ((Get-Item 'assets/fonts/NotoSansKR.ttf').Length -lt 10000000) { throw 'Noto Sans KR download is incomplete' }
+
       - name: Configure and build x64 Release
         shell: pwsh
         run: |

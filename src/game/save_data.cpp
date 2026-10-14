@@ -80,6 +80,8 @@ GameOptions DefaultOptionsForLocale(std::string_view locale) {
         options.subtitle_language = 12;
     } else if (primary == "pl") {
         options.subtitle_language = 13;
+    } else if (primary == "ko") {
+        options.subtitle_language = 14;
     }
     return options;
 }

@@ -189,7 +189,7 @@ UiFont* UiAssets::Font(UiFontType type, int language) {
         }
         std::vector<std::vector<uint8_t>> mips;
         if (language >= 7) {
-            const char* family = language == 8 ? "Noto Sans SC" : language == 9 ? (type == UiFontType::Movie ? "Noto Naskh Arabic" : "Noto Kufi Arabic") : "Noto Sans";
+            const char* family = language == 8 ? "Noto Sans SC" : language == 14 ? "Noto Sans KR" : language == 9 ? (type == UiFontType::Movie ? "Noto Naskh Arabic" : "Noto Kufi Arabic") : "Noto Sans";
             if (!font.font.LoadUnicodeFont(family, localized::Characters(language), language == 9, &error)) {
                 LogError("ui: Unicode font {}: {}", family, error); fonts_[index].reset(); return nullptr;
             }
