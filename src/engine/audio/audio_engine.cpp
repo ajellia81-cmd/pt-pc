@@ -30,8 +30,9 @@ public:
     bool Open(uint32_t rate, AudioOutput::RenderFunction render) {
         if (rate != 48000 || !render) return false;
         render_ = std::move(render);
-        if (FAILED(CoInitializeEx(nullptr, COINIT_MULTITHREADED))) return false;
-        com_initialized_ = true;
+        const HRESULT init = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+        if (FAILED(init) && init != RPC_E_CHANGED_MODE) return false;
+        com_initialized_ = SUCCEEDED(init);
         Microsoft::WRL::ComPtr<IMMDeviceEnumerator> enumerator;
         if (FAILED(CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, IID_PPV_ARGS(&enumerator))) ||
             FAILED(enumerator->GetDefaultAudioEndpoint(eRender, eConsole, &device_)) ||
