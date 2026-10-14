@@ -7,8 +7,8 @@
 
 namespace pt::audio {
 
-// The mixer owns the samples for the duration of SubmitMono.  Windows Spatial Sound takes coordinates in listener space:
-// +X right, +Y up and +Z in front.  Keeping this interface free of Windows headers lets the normal SDL backends stay intact.
+// The mixer owns the samples for the duration of SubmitMono. Windows Spatial Sound takes listener-space coordinates:
+// +X right, +Y up and -Z forward. Keeping this interface free of Windows headers lets the normal SDL backends stay intact.
 class SpatialAudioSink {
 public:
     virtual ~SpatialAudioSink() = default;

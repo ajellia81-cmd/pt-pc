@@ -3186,8 +3186,9 @@ uint32_t SoundEngine::RenderVoice(Voice& v, uint32_t offset, uint32_t frames) {
             static const ObjectState kEmptyObject;
             const ObjectState& state = object == objects_.end() ? kEmptyObject : object->second;
             const glm::vec3 relative = EmitterPosition(v, state) - listener_position_;
+            // The game's listener basis points forward, while Windows Spatial Sound's listener-space Z points back.
             const glm::vec3 position(glm::dot(relative, listener_right_), glm::dot(relative, listener_up_),
-                                     glm::dot(relative, listener_forward_));
+                                     -glm::dot(relative, listener_forward_));
             for (uint32_t i = 0; i < produced; ++i) {
                 const float w = (static_cast<float>(i) + 1.0f) / static_cast<float>(produced);
                 const float fade = fade0 + (fade1 - fade0) * w;
