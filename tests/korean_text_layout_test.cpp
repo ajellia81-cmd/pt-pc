@@ -65,9 +65,9 @@ int main() {
     subtitle.text_space = -6.0f;
     subtitle.line_space = -4.0f;
     pt::ui::NormalizeSubtitleStyle(subtitle);
-    for (const pt::korean::Text& entry : pt::korean::kSubtitles) {
-        if (!HasAllGlyphs(subtitle_font, entry.text) || !Fits(entry.text, subtitle, glm::vec2(1024.0f, 160.0f))) {
-            std::printf("FAIL: Korean subtitle layout: %.*s\n", int(entry.key.size()), entry.key.data());
+    for (const pt::korean::Subtitle& entry : pt::korean::kSubtitles) for (std::string_view line : entry.lines) {
+        if (!HasAllGlyphs(subtitle_font, line) || !Fits(line, subtitle, glm::vec2(1024.0f, 160.0f))) {
+            std::printf("FAIL: Korean subtitle layout: %08x\n", entry.key);
             ++failures;
         }
     }
