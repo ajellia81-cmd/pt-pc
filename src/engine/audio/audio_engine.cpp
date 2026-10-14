@@ -100,16 +100,15 @@ public:
 
     bool SubmitMono(std::span<const float> samples, const glm::vec3& position) override {
         if (next_dynamic_ >= dynamic_.size()) return false;
-        auto& object = dynamic_[next_dynamic_++];
-        BYTE* bytes = nullptr; UINT32 byte_count = 0;
-        if (FAILED(object->GetBuffer(&bytes, &byte_count)) || !bytes) return false;
-        const size_t frames = byte_count / sizeof(float);
-        float* out = reinterpret_cast<float*>(bytes);
+        DynamicBuffer& buffer = dynamic_buffers_[next_dynamic_++];
+        if (!buffer.samples) return false;
+        const size_t frames = buffer.frames;
+        float* out = buffer.samples;
         const size_t copied = std::min(samples.size(), frames);
         std::memcpy(out, samples.data(), copied * sizeof(float));
         std::fill(out + copied, out + frames, 0.0f);
-        object->SetPosition(position.x, position.y, position.z);
-        object->SetVolume(1.0f);
+        buffer.object->SetPosition(position.x, position.y, position.z);
+        buffer.object->SetVolume(1.0f);
         return true;
     }
 
@@ -120,30 +119,41 @@ private:
             UINT32 available = 0, frames = 0;
             if (FAILED(stream_->BeginUpdatingAudioObjects(&available, &frames)) || frames == 0) break;
             next_dynamic_ = 0;
-            auto zero = [frames](ISpatialAudioObject* object) {
-                BYTE* bytes = nullptr; UINT32 count = 0;
-                if (object && SUCCEEDED(object->GetBuffer(&bytes, &count)) && bytes) std::memset(bytes, 0, count);
-            };
-            zero(bed_left_.Get()); zero(bed_right_.Get());
-            for (auto& object : dynamic_) zero(object.Get());
+            BYTE* left = nullptr; BYTE* right = nullptr; UINT32 left_bytes = 0, right_bytes = 0;
+            if (FAILED(bed_left_->GetBuffer(&left, &left_bytes)) || FAILED(bed_right_->GetBuffer(&right, &right_bytes)) ||
+                !left || !right || left_bytes < frames * sizeof(float) || right_bytes < frames * sizeof(float)) {
+                stream_->EndUpdatingAudioObjects();
+                break;
+            }
+            std::memset(left, 0, left_bytes); std::memset(right, 0, right_bytes);
+            dynamic_buffers_.resize(dynamic_.size());
+            for (size_t i = 0; i < dynamic_.size(); ++i) {
+                BYTE* bytes = nullptr; UINT32 byte_count = 0;
+                if (SUCCEEDED(dynamic_[i]->GetBuffer(&bytes, &byte_count)) && bytes) {
+                    std::memset(bytes, 0, byte_count);
+                    dynamic_buffers_[i] = {dynamic_[i].Get(), reinterpret_cast<float*>(bytes), byte_count / sizeof(float)};
+                } else {
+                    dynamic_buffers_[i] = {};
+                }
+            }
             bed_.assign(static_cast<size_t>(frames) * 2, 0.0f);
             render_(bed_.data(), frames, 2, this);
-            BYTE* left = nullptr; BYTE* right = nullptr; UINT32 ignored = 0;
-            if (SUCCEEDED(bed_left_->GetBuffer(&left, &ignored)) && left && SUCCEEDED(bed_right_->GetBuffer(&right, &ignored)) && right) {
-                auto* l = reinterpret_cast<float*>(left); auto* r = reinterpret_cast<float*>(right);
-                for (UINT32 i = 0; i < frames; ++i) { l[i] = bed_[i * 2]; r[i] = bed_[i * 2 + 1]; }
-            }
+            auto* l = reinterpret_cast<float*>(left); auto* r = reinterpret_cast<float*>(right);
+            for (UINT32 i = 0; i < frames; ++i) { l[i] = bed_[i * 2]; r[i] = bed_[i * 2 + 1]; }
+            dynamic_buffers_.clear();
             if (FAILED(stream_->EndUpdatingAudioObjects())) break;
         }
         running_ = false;
     }
 
     AudioOutput::RenderFunction render_;
+    struct DynamicBuffer { ISpatialAudioObject* object = nullptr; float* samples = nullptr; size_t frames = 0; };
     Microsoft::WRL::ComPtr<IMMDevice> device_;
     Microsoft::WRL::ComPtr<ISpatialAudioClient> client_;
     Microsoft::WRL::ComPtr<ISpatialAudioObjectRenderStream> stream_;
     Microsoft::WRL::ComPtr<ISpatialAudioObject> bed_left_, bed_right_;
     std::vector<Microsoft::WRL::ComPtr<ISpatialAudioObject>> dynamic_;
+    std::vector<DynamicBuffer> dynamic_buffers_;
     WAVEFORMATEX format_{};
     HANDLE event_ = nullptr, stop_ = nullptr;
     std::thread worker_;
