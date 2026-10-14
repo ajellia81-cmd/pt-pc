@@ -75,6 +75,7 @@ jobs:
             build/release/*.dll
             build/release/shaders/**
             build/release/voice/**
+            build/release/fonts/**
             build/release/licenses/**
 
       - name: Upload build log on failure
