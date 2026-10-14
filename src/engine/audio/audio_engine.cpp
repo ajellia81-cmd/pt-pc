@@ -2,13 +2,156 @@
 
 #include <SDL3/SDL.h>
 
+#include <algorithm>
+#include <atomic>
+#include <cstring>
+#include <thread>
 #include <string>
 
 #include "engine/audio/channel_layout.h"
 #include "engine/core/log.h"
 #include "engine/platform/sdl_diag.h"
 
+#if defined(_WIN32)
+#include <mmdeviceapi.h>
+#include <propvarutil.h>
+#include <spatialaudioclient.h>
+#include <windows.h>
+#include <wrl/client.h>
+#endif
+
 namespace pt::audio {
+
+#if defined(_WIN32)
+// Owns a native Windows Spatial Sound stream. Dynamic objects carry game emitters, while two static objects retain
+// the legacy stereo bed (music, UI and effect returns). Windows performs the endpoint-specific Atmos/Sonic rendering.
+class WindowsSpatialOutput final : public SpatialAudioSink {
+public:
+    bool Open(uint32_t rate, AudioOutput::RenderFunction render) {
+        if (rate != 48000 || !render) return false;
+        render_ = std::move(render);
+        if (FAILED(CoInitializeEx(nullptr, COINIT_MULTITHREADED))) return false;
+        com_initialized_ = true;
+        Microsoft::WRL::ComPtr<IMMDeviceEnumerator> enumerator;
+        if (FAILED(CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, IID_PPV_ARGS(&enumerator))) ||
+            FAILED(enumerator->GetDefaultAudioEndpoint(eRender, eConsole, &device_)) ||
+            FAILED(device_->Activate(__uuidof(ISpatialAudioClient), CLSCTX_ALL, nullptr, reinterpret_cast<void**>(client_.GetAddressOf())))) {
+            Close(); return false;
+        }
+        Microsoft::WRL::ComPtr<IAudioFormatEnumerator> formats;
+        if (FAILED(client_->GetSupportedAudioObjectFormatEnumerator(&formats))) { Close(); return false; }
+        UINT32 count = 0;
+        if (FAILED(formats->GetCount(&count))) { Close(); return false; }
+        for (UINT32 i = 0; i < count; ++i) {
+            WAVEFORMATEX* candidate = nullptr;
+            if (SUCCEEDED(formats->GetFormat(i, &candidate)) && candidate && candidate->nSamplesPerSec == rate &&
+                candidate->nChannels == 1 && candidate->wFormatTag == WAVE_FORMAT_IEEE_FLOAT) {
+                format_ = *candidate;
+                CoTaskMemFree(candidate);
+                break;
+            }
+            if (candidate) CoTaskMemFree(candidate);
+        }
+        if (format_.nSamplesPerSec != rate) { Close(); return false; }
+        UINT32 max_dynamic = 0;
+        if (FAILED(client_->GetMaxDynamicObjectCount(&max_dynamic)) || max_dynamic == 0) { Close(); return false; }
+        max_dynamic_ = std::min<UINT32>(max_dynamic, 32);
+        event_ = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+        stop_ = CreateEvent(nullptr, TRUE, FALSE, nullptr);
+        if (!event_ || !stop_) { Close(); return false; }
+        SpatialAudioObjectRenderStreamActivationParams params{};
+        params.ObjectFormat = &format_;
+        params.StaticObjectTypeMask = static_cast<AudioObjectType>(AudioObjectType_FrontLeft | AudioObjectType_FrontRight);
+        params.MinDynamicObjectCount = 0;
+        params.MaxDynamicObjectCount = max_dynamic_;
+        params.Category = AudioCategory_GameEffects;
+        params.EventHandle = event_;
+        PROPVARIANT activation{};
+        activation.vt = VT_BLOB;
+        activation.blob.cbSize = sizeof(params);
+        activation.blob.pBlobData = reinterpret_cast<BYTE*>(&params);
+        if (FAILED(client_->ActivateSpatialAudioStream(&activation, IID_PPV_ARGS(&stream_)))) { Close(); return false; }
+        if (FAILED(stream_->ActivateSpatialAudioObject(AudioObjectType_FrontLeft, &bed_left_)) ||
+            FAILED(stream_->ActivateSpatialAudioObject(AudioObjectType_FrontRight, &bed_right_))) { Close(); return false; }
+        dynamic_.resize(max_dynamic_);
+        for (auto& object : dynamic_) {
+            if (FAILED(stream_->ActivateSpatialAudioObject(AudioObjectType_Dynamic, &object))) { Close(); return false; }
+        }
+        if (FAILED(stream_->Start())) { Close(); return false; }
+        running_ = true;
+        worker_ = std::thread([this] { Pump(); });
+        LogInfo("audio: native Windows Spatial Sound stream active ({} dynamic objects)", max_dynamic_);
+        return true;
+    }
+
+    void Close() {
+        running_ = false;
+        if (stop_) SetEvent(stop_);
+        if (worker_.joinable()) worker_.join();
+        if (stream_) stream_->Stop();
+        dynamic_.clear(); bed_left_.Reset(); bed_right_.Reset(); stream_.Reset(); client_.Reset(); device_.Reset(); render_ = {};
+        if (event_) { CloseHandle(event_); event_ = nullptr; }
+        if (stop_) { CloseHandle(stop_); stop_ = nullptr; }
+        if (com_initialized_) { CoUninitialize(); com_initialized_ = false; }
+    }
+
+    ~WindowsSpatialOutput() override { Close(); }
+
+    void SubmitMono(std::span<const float> samples, const glm::vec3& position) override {
+        if (next_dynamic_ >= dynamic_.size()) return;
+        auto& object = dynamic_[next_dynamic_++];
+        BYTE* bytes = nullptr; UINT32 byte_count = 0;
+        if (FAILED(object->GetBuffer(&bytes, &byte_count)) || !bytes) return;
+        const size_t frames = byte_count / sizeof(float);
+        float* out = reinterpret_cast<float*>(bytes);
+        const size_t copied = std::min(samples.size(), frames);
+        std::memcpy(out, samples.data(), copied * sizeof(float));
+        std::fill(out + copied, out + frames, 0.0f);
+        object->SetPosition(position.x, position.y, position.z);
+        object->SetVolume(1.0f);
+    }
+
+private:
+    void Pump() {
+        const HANDLE waits[2] = {event_, stop_};
+        while (WaitForMultipleObjects(2, waits, FALSE, INFINITE) == WAIT_OBJECT_0 && running_) {
+            UINT32 available = 0, frames = 0;
+            if (FAILED(stream_->BeginUpdatingAudioObjects(&available, &frames)) || frames == 0) break;
+            next_dynamic_ = 0;
+            auto zero = [frames](ISpatialAudioObject* object) {
+                BYTE* bytes = nullptr; UINT32 count = 0;
+                if (object && SUCCEEDED(object->GetBuffer(&bytes, &count)) && bytes) std::memset(bytes, 0, count);
+            };
+            zero(bed_left_.Get()); zero(bed_right_.Get());
+            for (auto& object : dynamic_) zero(object.Get());
+            bed_.assign(static_cast<size_t>(frames) * 2, 0.0f);
+            render_(bed_.data(), frames, 2, this);
+            BYTE* left = nullptr; BYTE* right = nullptr; UINT32 ignored = 0;
+            if (SUCCEEDED(bed_left_->GetBuffer(&left, &ignored)) && left && SUCCEEDED(bed_right_->GetBuffer(&right, &ignored)) && right) {
+                auto* l = reinterpret_cast<float*>(left); auto* r = reinterpret_cast<float*>(right);
+                for (UINT32 i = 0; i < frames; ++i) { l[i] = bed_[i * 2]; r[i] = bed_[i * 2 + 1]; }
+            }
+            if (FAILED(stream_->EndUpdatingAudioObjects())) break;
+        }
+        running_ = false;
+    }
+
+    AudioOutput::RenderFunction render_;
+    Microsoft::WRL::ComPtr<IMMDevice> device_;
+    Microsoft::WRL::ComPtr<ISpatialAudioClient> client_;
+    Microsoft::WRL::ComPtr<ISpatialAudioObjectRenderStream> stream_;
+    Microsoft::WRL::ComPtr<ISpatialAudioObject> bed_left_, bed_right_;
+    std::vector<Microsoft::WRL::ComPtr<ISpatialAudioObject>> dynamic_;
+    WAVEFORMATEX format_{};
+    HANDLE event_ = nullptr, stop_ = nullptr;
+    std::thread worker_;
+    std::atomic<bool> running_{false};
+    size_t next_dynamic_ = 0;
+    UINT32 max_dynamic_ = 0;
+    std::vector<float> bed_;
+    bool com_initialized_ = false;
+};
+#endif
 
 AudioOutput::~AudioOutput() {
     Close();
@@ -23,7 +166,15 @@ bool AudioOutput::Open(uint32_t sample_rate, bool surround, bool spatial_audio, 
     }
     render_ = std::move(render);
 #if defined(_WIN32)
-    if (spatial_audio) LogWarn("audio: Dolby Atmos requested but the native Spatial Sound renderer is unavailable; using normal output");
+    if (spatial_audio) {
+        spatial_output_ = std::make_unique<WindowsSpatialOutput>();
+        if (spatial_output_->Open(sample_rate, render_)) {
+            channels_ = 2;
+            return true;
+        }
+        spatial_output_.reset();
+        LogWarn("audio: Windows Spatial Sound unavailable on the default endpoint; using normal output");
+    }
 #else
     if (spatial_audio) LogInfo("audio: Dolby Atmos requested on a non-Windows build; using normal output");
 #endif
@@ -150,6 +301,10 @@ bool AudioOutput::Open(uint32_t sample_rate, bool surround, bool spatial_audio, 
 }
 
 void AudioOutput::Close() {
+    if (spatial_output_) {
+        spatial_output_->Close();
+        spatial_output_.reset();
+    }
     if (stream_) {
         SDL_UnbindAudioStream(stream_);
         SDL_DestroyAudioStream(stream_);

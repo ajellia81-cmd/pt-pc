@@ -3177,6 +3177,7 @@ uint32_t SoundEngine::RenderVoice(Voice& v, uint32_t offset, uint32_t frames) {
     }
     // Preserve a mono, post-filter copy for the native Windows spatial path before the legacy speaker matrix folds it.
     // Effects and the non-spatial bed continue through the normal bus renderer; the Windows sink consumes this synchronously.
+    bool routed_to_spatial = false;
     if (spatial_sink_ && v.channels == 1 && v.node && v.node->positioning && v.node->positioning->has_3d && v.node->positioning->spatialized) {
         const float normalization = v.mix_l[0] + v.mix_r[0];
         if (normalization > 1e-6f) {
@@ -3194,6 +3195,7 @@ uint32_t SoundEngine::RenderVoice(Voice& v, uint32_t offset, uint32_t frames) {
                 spatial_mono_[i] = (out_l[i] + out_r[i]) / normalization * gain;
             }
             spatial_sink_->SubmitMono(spatial_mono_, position);
+            routed_to_spatial = true;
         }
     }
     const float inv = 1.0f / static_cast<float>(produced);
@@ -3250,9 +3252,11 @@ uint32_t SoundEngine::RenderVoice(Voice& v, uint32_t offset, uint32_t frames) {
             }
         }
     };
-    mix(bus, v.gain_prev, target, v.sc_mode == 0);
+    // The dynamic object is the dry path for an eligible 3D voice. Keep its aux sends in the conventional bed so
+    // authored reverbs, music and UI retain their existing treatment without duplicating the direct sound.
+    if (!routed_to_spatial) mix(bus, v.gain_prev, target, v.sc_mode == 0);
     std::copy(target, target + 4, v.gain_prev);
-    if (bus && bus->sc_direct && v.sc_mode != 0 && (v.sc_dry_prev != 0.0f || v.dry_gain != 0.0f)) {
+    if (!routed_to_spatial && bus && bus->sc_direct && v.sc_mode != 0 && (v.sc_dry_prev != 0.0f || v.dry_gain != 0.0f)) {
         float* weight = sc_weight_.data();
         for (uint32_t i = 0; i < produced; ++i) {
             const float w = (static_cast<float>(i) + 1.0f) * inv;

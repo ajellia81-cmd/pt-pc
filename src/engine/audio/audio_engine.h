@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <vector>
 
 #include "engine/audio/spatial_audio.h"
@@ -9,6 +10,8 @@
 struct SDL_AudioStream;
 
 namespace pt::audio {
+
+class WindowsSpatialOutput;
 
 class AudioOutput {
 public:
@@ -32,6 +35,7 @@ private:
     RenderFunction render_;
     std::vector<float> buffer_;
     uint32_t channels_ = 2;
+    std::unique_ptr<WindowsSpatialOutput> spatial_output_;
 };
 
 }

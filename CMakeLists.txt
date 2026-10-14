@@ -75,7 +75,7 @@ target_compile_definitions(pt_engine PUBLIC VK_NO_PROTOTYPES NOMINMAX WIN32_LEAN
 target_link_libraries(pt_engine PUBLIC pt_thirdparty SDL3::SDL3-static)
 if(WIN32)
   # dbghelp: the crash report (src/engine/core/crash_report.cpp) writes minidumps from pt_engine, so every test links it
-  target_link_libraries(pt_engine PUBLIC gdi32 usp10 winhttp dbghelp ws2_32)
+  target_link_libraries(pt_engine PUBLIC gdi32 usp10 winhttp dbghelp ws2_32 mmdevapi ole32 uuid)
 else()
   # Linux: the platform layer loads libcurl at run time (src/engine/platform/http.cpp); fonts are shaped with HarfBuzz
   target_link_libraries(pt_engine PUBLIC ${CMAKE_DL_LIBS} Threads::Threads)
