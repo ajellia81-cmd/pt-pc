@@ -11,6 +11,9 @@ for /f "usebackq delims=" %%I in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\
 if "%VSDIR%"=="" set "VSDIR=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools"
 set "PATH=%SystemRoot%\system32;%SystemRoot%;%SystemRoot%\System32\Wbem;%SystemRoot%\System32\WindowsPowerShell\v1.0;C:\Program Files\Git\cmd;%ProgramFiles(x86)%\Microsoft Visual Studio\Installer"
 call "%VSDIR%\VC\Auxiliary\Build\vcvars64.bat" >nul || exit /b 1
+rem Hosted runners sometimes retain VULKAN_SDK from a removed SDK version. Discard it before
+rem probing the installed directories so the Release build can use the SDK just installed by CI.
+if not "%VULKAN_SDK%"=="" if not exist "%VULKAN_SDK%\Bin\glslc.exe" set "VULKAN_SDK="
 if "%VULKAN_SDK%"=="" if exist "C:\VulkanSDK\" (
   for /f "delims=" %%I in ('dir /b /ad /o-n "C:\VulkanSDK"') do if "!VULKAN_SDK!"=="" set "VULKAN_SDK=C:\VulkanSDK\%%I"
 )
