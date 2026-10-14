@@ -56,13 +56,13 @@ std::wstring Wide(std::string_view text) {
     return out;
 }
 }
-bool FfntFont::LoadUnicodeFont(std::string_view family, std::string_view characters, bool rtl, std::string* error) {
+bool FfntFont::LoadUnicodeFont(std::string_view family, std::string_view characters, bool rtl, std::string* error, int weight) {
     static PrivateFonts resources;
     if (resources.paths.size() != std::size(kBundledFonts)) { if (error) *error = "bundled fonts missing"; return false; }
     auto state = std::make_shared<UnicodeFontState>();
     state->dc = CreateCompatibleDC(nullptr);
     const auto name = Wide(family);
-    state->font = CreateFontW(-48, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
+    state->font = CreateFontW(-48, 0, 0, 0, std::clamp(weight, 1, 1000), FALSE, FALSE, FALSE, DEFAULT_CHARSET,
         OUT_TT_ONLY_PRECIS, CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY, DEFAULT_PITCH, name.c_str());
     if (!state->dc || !state->font) { if (error) *error = "Unicode font allocation failed"; return false; }
     state->previous = SelectObject(state->dc, state->font); state->rtl = rtl;

@@ -190,7 +190,10 @@ UiFont* UiAssets::Font(UiFontType type, int language) {
         std::vector<std::vector<uint8_t>> mips;
         if (language >= 7) {
             const char* family = language == 8 ? "Noto Sans SC" : language == 14 ? "Noto Sans KR" : language == 9 ? (type == UiFontType::Movie ? "Noto Naskh Arabic" : "Noto Kufi Arabic") : "Noto Sans";
-            if (!font.font.LoadUnicodeFont(family, localized::Characters(language), language == 9, &error)) {
+            // The original uses a sturdy menu face and a noticeably lighter movie/subtitle face. Keep the Korean family unified,
+            // but select its Medium instance for menus and Light instance for subtitles.
+            const int weight = language == 14 ? (type == UiFontType::Movie ? 300 : 500) : 400;
+            if (!font.font.LoadUnicodeFont(family, localized::Characters(language), language == 9, &error, weight)) {
                 LogError("ui: Unicode font {}: {}", family, error); fonts_[index].reset(); return nullptr;
             }
         } else if (language != kJapanese) font.font.AddTurkishGlyphs();

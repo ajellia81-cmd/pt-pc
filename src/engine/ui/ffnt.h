@@ -44,7 +44,8 @@ public:
 
     bool BuildAtlas(std::vector<std::vector<uint8_t>>& mips, uint32_t mip_count, bool soften = true);
     void AddTurkishGlyphs();
-    bool LoadUnicodeFont(std::string_view family, std::string_view characters, bool rtl, std::string* error);
+    // weight follows the OpenType scale (400 regular, 500 medium, 300 light).
+    bool LoadUnicodeFont(std::string_view family, std::string_view characters, bool rtl, std::string* error, int weight = 400);
     bool Unicode() const { return bool(unicode_); }
     std::vector<ShapedGlyph> ShapeLine(std::span<const uint32_t> codes, float inline_advance) const;
     uint8_t Coverage(const FfntGlyph& glyph, int x, int y) const;

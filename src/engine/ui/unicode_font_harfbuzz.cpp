@@ -105,7 +105,7 @@ std::vector<Shaped> ShapeRun(const UnicodeFontState& s, std::span<const uint32_t
 }
 }
 
-bool FfntFont::LoadUnicodeFont(std::string_view family, std::string_view characters, bool rtl, std::string* error) {
+bool FfntFont::LoadUnicodeFont(std::string_view family, std::string_view characters, bool rtl, std::string* error, int weight) {
     auto fail = [&](const char* text) { if (error) *error = text; return false; };
     const char* file = FontFile(family);
     if (!file) return fail("bundled font face unavailable");
@@ -136,6 +136,8 @@ bool FfntFont::LoadUnicodeFont(std::string_view family, std::string_view charact
     state->font = hb_font_create(state->face);
     const unsigned upem = hb_face_get_upem(state->face);
     hb_font_set_scale(state->font, int(upem), int(upem));
+    const hb_variation_t variation{HB_TAG('w', 'g', 'h', 't'), float(weight)};
+    hb_font_set_variations(state->font, &variation, 1);
 
     std::set<uint32_t> ids;
     std::vector<std::pair<uint32_t, uint32_t>> codes;

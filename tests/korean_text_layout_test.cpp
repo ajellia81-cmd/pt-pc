@@ -30,10 +30,14 @@ bool HasAllGlyphs(const pt::ui::FfntFont& font, std::string_view text) {
 }
 
 int main() {
-    pt::ui::FfntFont font;
+    pt::ui::FfntFont font, subtitle_font;
     std::string error;
-    if (!font.LoadUnicodeFont("Noto Sans KR", pt::localized::Characters(14), false, &error)) {
+    if (!font.LoadUnicodeFont("Noto Sans KR", pt::localized::Characters(14), false, &error, 500)) {
         std::printf("FAIL: Korean font: %s\n", error.c_str());
+        return 1;
+    }
+    if (!subtitle_font.LoadUnicodeFont("Noto Sans KR", pt::localized::Characters(14), false, &error, 300)) {
+        std::printf("FAIL: Korean subtitle font: %s\n", error.c_str());
         return 1;
     }
 
@@ -56,13 +60,13 @@ int main() {
     }
 
     pt::ui::TextStyle subtitle;
-    subtitle.font = &font;
+    subtitle.font = &subtitle_font;
     subtitle.font_width = subtitle.font_height = 32.0f;
     subtitle.text_space = -6.0f;
     subtitle.line_space = -4.0f;
     pt::ui::NormalizeSubtitleStyle(subtitle);
     for (const pt::korean::Text& entry : pt::korean::kSubtitles) {
-        if (!HasAllGlyphs(font, entry.text) || !Fits(entry.text, subtitle, glm::vec2(1024.0f, 160.0f))) {
+        if (!HasAllGlyphs(subtitle_font, entry.text) || !Fits(entry.text, subtitle, glm::vec2(1024.0f, 160.0f))) {
             std::printf("FAIL: Korean subtitle layout: %.*s\n", int(entry.key.size()), entry.key.data());
             ++failures;
         }
