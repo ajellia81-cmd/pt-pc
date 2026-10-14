@@ -3202,7 +3202,10 @@ uint32_t SoundEngine::RenderVoice(Voice& v, uint32_t offset, uint32_t frames) {
                 const float w = (static_cast<float>(i) + 1.0f) / static_cast<float>(produced);
                 const float fade = fade0 + (fade1 - fade0) * w;
                 const float gain = (v.sc_dry_prev + (v.dry_gain - v.sc_dry_prev) * w) * fade;
-                spatial_mono_[i] = (out_l[i] + out_r[i]) / normalization * gain;
+                // The legacy output applies the master gain and clamps the final device samples. Dynamic spatial
+                // objects bypass that final stereo pass, so apply the same endpoint protection here to avoid
+                // over-range samples distorting in the Windows spatial renderer.
+                spatial_mono_[i] = std::clamp((out_l[i] + out_r[i]) / normalization * gain * master_gain_, -1.0f, 1.0f);
             }
             routed_to_spatial = spatial_sink_->SubmitMono(spatial_mono_, position);
         }
