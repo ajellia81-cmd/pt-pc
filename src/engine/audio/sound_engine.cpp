@@ -3216,7 +3216,7 @@ uint32_t SoundEngine::RenderVoice(Voice& v, uint32_t offset, uint32_t frames) {
                 // over-range samples distorting in the Windows spatial renderer.
                 spatial_mono_[i] = std::clamp((out_l[i] + out_r[i]) / normalization * gain * master_gain_, -1.0f, 1.0f);
             }
-            routed_to_spatial = spatial_sink_->SubmitMono(spatial_mono_, position);
+            routed_to_spatial = spatial_sink_->SubmitMono(v.serial, spatial_render_offset_ + offset, spatial_mono_, position);
         }
     }
     const float inv = 1.0f / static_cast<float>(produced);
@@ -3696,9 +3696,11 @@ void SoundEngine::Render(float* out, uint32_t frames, uint32_t output_channels) 
     uint32_t done = 0;
     while (done < frames) {
         const uint32_t n = std::min(kBlockFrames, frames - done);
+        spatial_render_offset_ = done;
         RenderBlock(out + static_cast<size_t>(done) * output_channels, n, output_channels);
         done += n;
     }
+    spatial_render_offset_ = 0;
     if (!global_pause_) {
         rendered_frames_.fetch_add(frames);
     }

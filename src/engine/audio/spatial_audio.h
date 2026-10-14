@@ -14,7 +14,10 @@ public:
     virtual ~SpatialAudioSink() = default;
     // Returns false when the endpoint has no remaining dynamic object for this render period; callers then retain
     // the voice in the conventional bed instead of silently dropping it.
-    virtual bool SubmitMono(std::span<const float> samples, const glm::vec3& listener_relative_position) = 0;
+    // A Windows render period can contain multiple mixer blocks. The stable voice id and frame offset keep each
+    // voice in one spatial object and append its samples at the matching point in the endpoint buffer.
+    virtual bool SubmitMono(uint32_t voice_id, uint32_t frame_offset, std::span<const float> samples,
+                            const glm::vec3& listener_relative_position) = 0;
 };
 
 }  // namespace pt::audio

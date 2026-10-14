@@ -599,6 +599,7 @@ private:
     std::atomic<bool> frozen_{false};
     bool trace_ = false;
     SpatialAudioSink* spatial_sink_ = nullptr;
+    uint32_t spatial_render_offset_ = 0;
     std::vector<float> spatial_mono_;
 };
 
