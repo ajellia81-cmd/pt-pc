@@ -375,8 +375,13 @@ private:
         std::array<std::vector<float>, 8> sc_rs;
         float sc_lpf_hist[8][4] = {};
         float sc_dry_prev = 0.0f;
-        // Private copies of authored bus effects for the native spatial object's direct signal.
-        std::vector<std::unique_ptr<Effect>> spatial_effects;
+        // A private, object-local copy of each non-master bus stage. This keeps the direct signal's authored
+        // gain/effect order intact before it becomes a Windows Spatial Sound object.
+        struct SpatialBusStage {
+            uint32_t bus_id = 0;
+            std::vector<std::unique_ptr<Effect>> effects;
+        };
+        std::vector<SpatialBusStage> spatial_bus_stages;
     };
 
     struct BusRuntime {

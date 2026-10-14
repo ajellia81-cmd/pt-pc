@@ -1563,13 +1563,16 @@ void SoundEngine::BuildSpatialEffects(Voice& v) {
     // The normal renderer processes child buses first. Mirror that order per object, but leave the shared master
     // chain alone: applying its limiter/reverb once per object would change the whole mix.
     for (BusRuntime* bus = Bus(v.bus_id); bus && bus != master_; bus = bus->parent) {
+        Voice::SpatialBusStage stage;
+        stage.bus_id = bus->id;
         for (const auto& slot : bus->object->fx.slots) {
             const HircObject* object = banks_->Find(slot.fx_id);
             if (!object || (object->type != HircType::FxCustom && object->type != HircType::FxShareSet)) continue;
             if (auto effect = CreateEffect(*static_cast<const FxObject*>(object))) {
-                v.spatial_effects.push_back(std::move(effect));
+                stage.effects.push_back(std::move(effect));
             }
         }
+        v.spatial_bus_stages.push_back(std::move(stage));
     }
 }
 
@@ -3212,10 +3215,20 @@ uint32_t SoundEngine::RenderVoice(Voice& v, uint32_t offset, uint32_t frames) {
                 const float gain = (v.sc_dry_prev + (v.dry_gain - v.sc_dry_prev) * w) * fade;
                 spatial_mono_[i] = (out_l[i] + out_r[i]) / normalization * gain;
             }
-            if (!v.spatial_effects.empty()) {
+            if (!v.spatial_bus_stages.empty()) {
                 spatial_left_.assign(spatial_mono_.begin(), spatial_mono_.end());
                 spatial_right_ = spatial_left_;
-                for (auto& effect : v.spatial_effects) effect->Process(spatial_left_.data(), spatial_right_.data(), produced);
+                for (auto& stage : v.spatial_bus_stages) {
+                    if (BusRuntime* bus = Bus(stage.bus_id)) {
+                        const float inv = 1.0f / static_cast<float>(produced);
+                        for (uint32_t i = 0; i < produced; ++i) {
+                            const float gain = bus->gain_prev + (bus->gain - bus->gain_prev) * (static_cast<float>(i) + 1.0f) * inv;
+                            spatial_left_[i] *= gain;
+                            spatial_right_[i] *= gain;
+                        }
+                    }
+                    for (auto& effect : stage.effects) effect->Process(spatial_left_.data(), spatial_right_.data(), produced);
+                }
                 for (uint32_t i = 0; i < produced; ++i) spatial_mono_[i] = 0.5f * (spatial_left_[i] + spatial_right_[i]);
             }
             routed_to_spatial = spatial_sink_->SubmitMono(spatial_mono_, position);
