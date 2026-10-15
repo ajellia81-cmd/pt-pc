@@ -67,6 +67,7 @@ struct UifNodeState {
     std::optional<UiFontType> font_type;
     // A single localized label may need a supplied Unicode fallback font (for example 韓 in the Japanese menu).
     std::optional<int> font_language;
+    std::optional<float> font_scale;
     std::optional<glm::vec3> anim_translate;
     std::optional<glm::vec3> anim_scale;
     std::optional<glm::vec4> anim_color;

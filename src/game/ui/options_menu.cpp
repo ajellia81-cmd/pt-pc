@@ -490,7 +490,10 @@ void OptionsMenu::ApplyTexts() {
             view_.State(id).text = language_index == UiAssets::kLanguageCount
                 ? std::string(kKoreanLanguageNames[text_language_]) : std::string(kNativeLanguageNames[language_index]);
             // The original Japanese FFNT omits 韓.  Render this one label with the bundled CJK font instead.
-            if (language_index == UiAssets::kLanguageCount && text_language_ == 4) view_.State(id).font_language = 8;
+            if (language_index == UiAssets::kLanguageCount && text_language_ == 4) {
+                view_.State(id).font_language = 8;
+                view_.State(id).font_scale = .80f;
+            }
         }
     }
     set(kCameraLabel, "op_camera_setting");
