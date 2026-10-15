@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cstring>
 #include <format>
+#include <iterator>
 
 #include "engine/audio/sound_package.h"
 #include "engine/core/log.h"
@@ -95,7 +96,7 @@ bool SubtitleTable::Load(Vfs& vfs, std::string_view language, std::span<const st
                     for (size_t i = 0; i < entry.lines.size(); ++i) {
                         const size_t translated = std::min(t.lines.size() - 1, i * t.lines.size() / entry.lines.size());
                         auto& line = entry.lines[i].text;
-                        line = t.lines[translated];
+                        line = *std::next(t.lines.begin(), translated);
                         std::replace(line.begin(), line.end(), '|', '\n');
                     }
                     found = true;
