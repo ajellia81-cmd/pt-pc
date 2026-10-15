@@ -197,6 +197,9 @@ std::vector<SubtitlePlayer::TranscriptLine> SubtitlePlayer::Transcript(std::stri
         std::string text = ValidUtf8(line.text) ? line.text : Cp1252ToUtf8(line.text);
         while (!text.empty() && (text.back() == '\0' || text.back() == '\n' || text.back() == ' ')) text.pop_back();
         std::replace(text.begin(), text.end(), '\n', ' ');
+        // Museum transcripts flatten subtitle line breaks.  Translation entries commonly keep a space on both
+        // sides of a visual line break ("에서 | 시간제"), which otherwise becomes a visible double space here.
+        text.erase(std::unique(text.begin(), text.end(), [](char a, char b) { return a == ' ' && b == ' '; }), text.end());
         out.push_back({line.start_seconds, line.end_seconds, std::move(text)});
     }
     return out;
