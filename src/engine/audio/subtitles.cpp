@@ -88,7 +88,7 @@ bool SubtitleTable::Load(Vfs& vfs, std::string_view language, std::span<const st
         for (SubtitleEntry& entry : entries_) {
             bool found = false;
             auto translate = [&](const auto& table) {
-                for (const auto& t : table) if (t.key == entry.key && !t.lines.empty()) {
+                for (const auto& t : table) if (t.key == entry.key && t.lines.size() != 0) {
                     // Japanese and English packages occasionally divide one spoken thought at different points.
                     // Keep the original English timings, but map each timed slot to the corresponding Korean line
                     // instead of rejecting the entire Korean table and falling back to English.
