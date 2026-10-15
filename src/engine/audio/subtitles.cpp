@@ -2,6 +2,7 @@
 
 #include <cctype>
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <format>
 #include <iterator>
@@ -91,16 +92,28 @@ bool SubtitleTable::Load(Vfs& vfs, std::string_view language, std::span<const st
             auto translate = [&](const auto& table) {
                 for (const auto& t : table) if (t.key == entry.key && t.lines.size() != 0) {
                     // Japanese and English packages occasionally divide one spoken thought at different points.
-                    // Keep the original English timings, but map each timed slot to the corresponding Korean line
-                    // instead of rejecting the entire Korean table and falling back to English.
-                    for (size_t i = 0; i < entry.lines.size(); ++i) {
-                        // Map both ends exactly.  The radio news has 18 English timing slots but 19 Korean lines;
-                        // the old i * target / source calculation never selected its final Korean sentence.
-                        const size_t translated = entry.lines.size() > 1
-                            ? (t.lines.size() - 1) * i / (entry.lines.size() - 1) : 0;
-                        auto& line = entry.lines[i].text;
-                        line = *std::next(t.lines.begin(), translated);
-                        std::replace(line.begin(), line.end(), '|', '\n');
+                    // Keep the original English time span, but give every translated sentence a timed slot.  A
+                    // one-to-one index mapping silently loses text whenever the source and translation use a
+                    // different number of sentences (the radio news is 18 English slots and 19 Korean ones).
+                    const std::vector<SubtitleLine> source_lines = entry.lines;
+                    entry.lines.resize(t.lines.size());
+                    auto time_at = [&](float position) {
+                        const size_t lower = std::min(static_cast<size_t>(position), source_lines.size() - 1);
+                        const size_t upper = std::min(lower + 1, source_lines.size() - 1);
+                        const float fraction = position - static_cast<float>(lower);
+                        const float a = source_lines[lower].start_seconds;
+                        const float b = upper == lower ? source_lines[lower].end_seconds : source_lines[upper].start_seconds;
+                        return std::lerp(a, b, fraction);
+                    };
+                    size_t i = 0;
+                    for (std::string_view translated : t.lines) {
+                        auto& line = entry.lines[i];
+                        line.start_seconds = time_at(static_cast<float>(i) * source_lines.size() / t.lines.size());
+                        line.end_seconds = i + 1 == t.lines.size() ? source_lines.back().end_seconds
+                            : time_at(static_cast<float>(i + 1) * source_lines.size() / t.lines.size());
+                        line.text = translated;
+                        std::replace(line.text.begin(), line.text.end(), '|', '\n');
+                        ++i;
                     }
                     found = true;
                     break;
