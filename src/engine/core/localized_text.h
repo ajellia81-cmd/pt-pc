@@ -26,6 +26,16 @@ inline std::string Characters(int language) {
  switch(language){case 7:add(turkish::kMenu,turkish::kSubtitles);break;case 8:add(chinese::kMenu,chinese::kSubtitles);break;case 9:add(arabic::kMenu,arabic::kSubtitles);break;case 10:add(russian::kMenu,russian::kSubtitles);break;case 11:add(ukrainian::kMenu,ukrainian::kSubtitles);break;case 12:add(czech::kMenu,czech::kSubtitles);break;case 13:add(polish::kMenu,polish::kSubtitles);break;case 14:add(korean::kMenu,korean::kSubtitles);break;}
  // The option screen adds the Korean language label to the original Chinese UI data.
  if (language == 8) out += "韩国语韓国語";
+ // These fixed English licence lines are drawn in the localized credits font.  Include complete words here so
+ // Uniscribe/HarfBuzz contributes ligatures such as the "fl" in Reflex to the generated atlas.
+ if (language >= 7) out += "NVIDIA RTX NVIDIA Streamline, NVIDIA DLSS Frame Generation and NVIDIA Reflex "
+     "NVIDIA, NVIDIA RTX, GeForce RTX, DLSS and Reflex are trademarks and/or registered trademarks of NVIDIA Corporation. "
+     "AMD FidelityFX Super Resolution 3 (FidelityFX SDK 1.1.4) Copyright (C) 2024 Advanced Micro Devices, Inc. MIT License. "
+     "Intel(R) Xe Super Sampling (XeSS) SDK 3.0.2 Copyright (C) 2025 Intel Corporation. Intel Simplified Software License. "
+     "AMD and FidelityFX are trademarks of Advanced Micro Devices, Inc. Intel and XeSS are trademarks of Intel Corporation. "
+     "whisper.cpp and ggml, Copyright (c) 2023-2026 The ggml authors. MIT License. Whisper, Copyright (c) 2022 OpenAI. "
+     "Silero VAD, Copyright (c) 2020-present Silero Team. Noto Sans, Noto Sans SC, Noto Kufi Arabic and Noto Naskh Arabic: "
+     "SIL Open Font License 1.1. Installer: LibOrbisPkg, GNU LGPL.";
  // the whole Russian and Ukrainian alphabet, for text that is not in the tables (a microphone's or a mod's name)
  if (language == 10 || language == 11) {
   auto utf8 = [&](uint32_t c) { out.push_back(char(0xC0 | (c >> 6))); out.push_back(char(0x80 | (c & 0x3F))); };
