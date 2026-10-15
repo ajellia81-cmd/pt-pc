@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <format>
 #include <functional>
+#include <limits>
 
 #include "engine/core/log.h"
 #include "engine/fs/vfs.h"
@@ -35,6 +36,42 @@ std::string Lower(std::string_view text) {
 
 ui::TextAlign Align(int value) {
     return value == 0 ? ui::TextAlign::Start : value == 2 ? ui::TextAlign::End : ui::TextAlign::Center;
+}
+
+// Keep the input region in lockstep with DrawSaveDialog: a system notice has one
+// explicit acknowledgement, not a full-screen click target.
+bool SaveDialogOkHit(UiAssets& assets, int language, std::string_view dialog, glm::vec2 pointer) {
+    UiFont* font = assets.Font(UiFontType::Movie, language);
+    if (!font) return false;
+    ui::TextStyle style;
+    style.font = &font->font;
+    if (const UiFontStyle* s = assets.FontStyle(kSubtitleFont, language)) {
+        style.font_width = s->width;
+        style.font_height = s->height;
+        style.text_space = s->text_space;
+        style.line_space = s->line_space;
+    }
+    style.text_space += assets.Generator().font_space;
+    style.line_space += assets.Generator().line_space;
+    ui::NormalizeSubtitleStyle(style);
+    const std::string text = std::string(dialog) + "\n\n" + std::string(PcText("pc_ok", language));
+    ui::TextLayout layout = ui::LayoutText(text, style, UiCanvas::kWidth * 0.6f);
+    ui::PlaceText(layout, {UiCanvas::kWidth * 0.2f, UiCanvas::kHeight * 0.3f},
+                  {UiCanvas::kWidth * 0.8f, UiCanvas::kHeight * 0.7f}, ui::TextAlign::Center, ui::TextAlign::Center,
+                  ui::TextAlign::Center);
+    if (layout.lines.empty() || layout.lines.back().glyphs.empty()) return false;
+    glm::vec2 lo(std::numeric_limits<float>::max());
+    glm::vec2 hi(std::numeric_limits<float>::lowest());
+    for (const ui::LaidGlyph& glyph : layout.lines.back().glyphs) {
+        lo = glm::min(lo, glyph.position);
+        hi = glm::max(hi, glyph.position + glyph.size);
+    }
+    // The pointer is in UI units around the screen centre.  A little padding makes
+    // the label comfortable to click without allowing an arbitrary-screen click.
+    const glm::vec2 px(UiCanvas::kWidth * 0.5f + pointer.x * UiCanvas::kUnit,
+                       UiCanvas::kHeight * 0.5f - pointer.y * UiCanvas::kUnit);
+    constexpr float kHitPadding = 18.0f;
+    return px.x >= lo.x - kHitPadding && px.x <= hi.x + kHitPadding && px.y >= lo.y - kHitPadding && px.y <= hi.y + kHitPadding;
 }
 
 }
@@ -351,11 +388,11 @@ void GameUi::Update(Game& game, const InputState& input, float dt) {
         if (save_dialog_text_.empty()) {
             save_dialog_text_ = dialog->key;
         }
-        // This is a one-button system-style notice.  Previously any mouse click anywhere on
-        // the dimmed screen acknowledged it, including a click intended only to inspect the
-        // newly changed speaker option.  Keep mouse clicks from confirming the change; Enter
-        // or the controller confirm button is the explicit acknowledgement.
-        if (menu_input.accept || input.confirm) {
+        // This is a one-button system-style notice.  Only its visible acknowledgement label,
+        // not an arbitrary click on the dimmed screen, may confirm with a mouse.
+        const bool mouse_ok = menu_input.click && menu_input.pointer_valid &&
+                              SaveDialogOkHit(assets_, language_, save_dialog_text_, menu_input.pointer);
+        if (menu_input.accept || input.confirm || mouse_ok) {
             game.CloseSaveDialog();
             save_dialog_text_.clear();
         }
