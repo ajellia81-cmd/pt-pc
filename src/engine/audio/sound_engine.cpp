@@ -3202,8 +3202,18 @@ uint32_t SoundEngine::RenderVoice(Voice& v, uint32_t offset, uint32_t frames) {
             const ObjectState& state = object == objects_.end() ? kEmptyObject : object->second;
             const glm::vec3 relative = EmitterPosition(v, state) - listener_position_;
             // The game's listener basis points forward, while Windows Spatial Sound's listener-space Z points back.
-            const glm::vec3 position(glm::dot(relative, listener_right_), glm::dot(relative, listener_up_),
-                                     -glm::dot(relative, listener_forward_));
+            glm::vec3 position(glm::dot(relative, listener_right_), glm::dot(relative, listener_up_),
+                               -glm::dot(relative, listener_forward_));
+            // ISpatialAudioObject positions are a normalized listener-space direction.  The
+            // mixer above already applies the game's authored distance attenuation, so passing
+            // raw world metres here only makes Windows saturate one axis first.  For example,
+            // (-0.77, 0.62, -5.92) became approximately (-0.77, 0.62, -1.0), audibly pulling
+            // an almost straight-rear source far to the left.  A unit vector preserves its
+            // azimuth and elevation independently of distance.
+            const float position_length = glm::length(position);
+            if (position_length > 1e-5f) {
+                position /= position_length;
+            }
             for (uint32_t i = 0; i < produced; ++i) {
                 const float w = (static_cast<float>(i) + 1.0f) / static_cast<float>(produced);
                 const float fade = fade0 + (fade1 - fade0) * w;
