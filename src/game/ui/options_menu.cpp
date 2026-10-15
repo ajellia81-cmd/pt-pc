@@ -485,6 +485,8 @@ void OptionsMenu::ApplyTexts() {
     set(kSubtitleLabel, "op_subtitles_setting");
     for (int language_index = 0; language_index <= UiAssets::kLanguageCount; ++language_index) {
         const uint16_t id = language_texts_[language_index];
+        view_.State(id).font_language.reset();
+        view_.State(id).font_scale.reset();
         set(id, kLanguageKeys[language_index]);
         if (language_index >= 8 && (view_.State(id).text->empty() || *view_.State(id).text == kLanguageKeys[language_index])) {
             view_.State(id).text = language_index == UiAssets::kLanguageCount
