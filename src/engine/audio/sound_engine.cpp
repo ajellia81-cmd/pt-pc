@@ -3187,9 +3187,12 @@ uint32_t SoundEngine::RenderVoice(Voice& v, uint32_t offset, uint32_t frames) {
     const float spatial_chain0 = bus ? bus->chain_prev : 1.0f;
     const float spatial_chain1 = bus ? bus->chain : 1.0f;
     bool routed_to_spatial = false;
-    if (spatial_sink_ && v.channels == 1 && v.node && v.node->positioning && v.node->positioning->has_3d && v.node->positioning->spatialized) {
+    // Wwise can mark positional emitters as stereo media. A Windows dynamic object is mono, so fold an eligible
+    // stereo source to one object at its authored position instead of leaving it in the legacy left/right bed.
+    // Wider source formats remain in that bed.
+    if (spatial_sink_ && v.channels <= 2 && v.node && v.node->positioning && v.node->positioning->has_3d && v.node->positioning->spatialized) {
         const float normalization = v.mix_l[0] + v.mix_r[0];
-        if (normalization > 1e-6f) {
+        if (v.channels == 2 || normalization > 1e-6f) {
             spatial_mono_.resize(produced);
             const auto object = objects_.find(v.object);
             static const ObjectState kEmptyObject;
@@ -3208,7 +3211,9 @@ uint32_t SoundEngine::RenderVoice(Voice& v, uint32_t offset, uint32_t frames) {
                 // The legacy output applies the master gain and clamps the final device samples. Dynamic spatial
                 // objects bypass that final stereo pass, so apply the same endpoint protection here to avoid
                 // over-range samples distorting in the Windows spatial renderer.
-                spatial_mono_[i] = std::clamp((out_l[i] + out_r[i]) / normalization * gain * master_gain_, -1.0f, 1.0f);
+                const float mono = v.channels == 1 ? (out_l[i] + out_r[i]) / normalization
+                                                   : 0.5f * (sc_voice_[0][i] + sc_voice_[1][i]);
+                spatial_mono_[i] = std::clamp(mono * gain * master_gain_, -1.0f, 1.0f);
             }
             routed_to_spatial = spatial_sink_->SubmitMono(v.serial, spatial_render_offset_ + offset, spatial_mono_, position);
         }
