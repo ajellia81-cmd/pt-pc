@@ -3187,10 +3187,13 @@ uint32_t SoundEngine::RenderVoice(Voice& v, uint32_t offset, uint32_t frames) {
     const float spatial_chain0 = bus ? bus->chain_prev : 1.0f;
     const float spatial_chain1 = bus ? bus->chain : 1.0f;
     bool routed_to_spatial = false;
+    const bool trace_spatial = std::getenv("PT_TRACE_SPATIAL") != nullptr;
+    const bool positional_voice = v.node && v.node->positioning && v.node->positioning->has_3d;
+    const bool dynamic_candidate = spatial_sink_ && positional_voice && v.node->positioning->spatialized && v.channels <= 2;
     // Wwise can mark positional emitters as stereo media. A Windows dynamic object is mono, so fold an eligible
     // stereo source to one object at its authored position instead of leaving it in the legacy left/right bed.
     // Wider source formats remain in that bed.
-    if (spatial_sink_ && v.channels <= 2 && v.node && v.node->positioning && v.node->positioning->has_3d && v.node->positioning->spatialized) {
+    if (dynamic_candidate) {
         const float normalization = v.mix_l[0] + v.mix_r[0];
         if (v.channels == 2 || normalization > 1e-6f) {
             spatial_mono_.resize(produced);
@@ -3216,7 +3219,18 @@ uint32_t SoundEngine::RenderVoice(Voice& v, uint32_t offset, uint32_t frames) {
                 spatial_mono_[i] = std::clamp(mono * gain * master_gain_, -1.0f, 1.0f);
             }
             routed_to_spatial = spatial_sink_->SubmitMono(v.serial, spatial_render_offset_ + offset, spatial_mono_, position);
+            if (trace_spatial && !v.spatial_trace_logged) {
+                LogInfo("audio: spatial voice {} node {} object {} channels {} -> {} at ({:.2f}, {:.2f}, {:.2f})", v.serial,
+                        v.node->id, v.object, v.channels, routed_to_spatial ? "dynamic" : "bed (no dynamic slot)", position.x,
+                        position.y, position.z);
+                v.spatial_trace_logged = true;
+            }
         }
+    }
+    if (trace_spatial && positional_voice && !v.spatial_trace_logged) {
+        LogInfo("audio: spatial voice {} node {} object {} stays in bed (sink {}, spatialized {}, channels {})", v.serial, v.node->id,
+                v.object, spatial_sink_ ? "on" : "off", v.node->positioning->spatialized ? "yes" : "no", v.channels);
+        v.spatial_trace_logged = true;
     }
     const float inv = 1.0f / static_cast<float>(produced);
     const float block_inv = 1.0f / static_cast<float>(frames);

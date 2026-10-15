@@ -351,7 +351,11 @@ void GameUi::Update(Game& game, const InputState& input, float dt) {
         if (save_dialog_text_.empty()) {
             save_dialog_text_ = dialog->key;
         }
-        if (menu_input.accept || menu_input.click || input.confirm) {
+        // This is a one-button system-style notice.  Previously any mouse click anywhere on
+        // the dimmed screen acknowledged it, including a click intended only to inspect the
+        // newly changed speaker option.  Keep mouse clicks from confirming the change; Enter
+        // or the controller confirm button is the explicit acknowledgement.
+        if (menu_input.accept || input.confirm) {
             game.CloseSaveDialog();
             save_dialog_text_.clear();
         }
