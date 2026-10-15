@@ -193,7 +193,10 @@ UiFont* UiAssets::Font(UiFontType type, int language) {
             // The original uses a sturdy menu face and a noticeably lighter movie/subtitle face. Keep the Korean family unified,
             // but select its Medium instance for menus and Light instance for subtitles.
             const int weight = language == 14 ? (type == UiFontType::Movie ? 300 : 500) : 400;
-            if (!font.font.LoadUnicodeFont(family, localized::Characters(language), language == 9, &error, weight)) {
+            // Korean subtitle/movie text uses a sampled outline. Give its dynamically rasterized glyphs a transparent rim so
+            // outline samples remain inside the glyph image instead of being clipped at the bitmap boundary.
+            if (!font.font.LoadUnicodeFont(family, localized::Characters(language), language == 9, &error, weight,
+                                           language == 14 && type == UiFontType::Movie)) {
                 LogError("ui: Unicode font {}: {}", family, error); fonts_[index].reset(); return nullptr;
             }
         } else if (language != kJapanese) font.font.AddTurkishGlyphs();

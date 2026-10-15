@@ -56,7 +56,8 @@ std::wstring Wide(std::string_view text) {
     return out;
 }
 }
-bool FfntFont::LoadUnicodeFont(std::string_view family, std::string_view characters, bool rtl, std::string* error, int weight) {
+bool FfntFont::LoadUnicodeFont(std::string_view family, std::string_view characters, bool rtl, std::string* error, int weight,
+                               bool outline_padding) {
     static PrivateFonts resources;
     if (resources.paths.size() != std::size(kBundledFonts)) { if (error) *error = "bundled fonts missing"; return false; }
     auto state = std::make_shared<UnicodeFontState>();
@@ -120,18 +121,22 @@ bool FfntFont::LoadUnicodeFont(std::string_view family, std::string_view charact
     for (auto id : ids) {
         GLYPHMETRICS gm{};
         const DWORD n = GetGlyphOutlineW(state->dc, id, GGO_GRAY8_BITMAP | GGO_GLYPH_INDEX, &gm, 0, nullptr, &matrix);
-        if (n == GDI_ERROR || gm.gmBlackBoxX > 1020 || gm.gmBlackBoxY > 1020) {if(error)*error="font glyph too large or unreadable";return false;}
+        constexpr unsigned kOutlinePadding = 2;
+        const unsigned max_box = outline_padding ? 1016 : 1020;
+        if (n == GDI_ERROR || gm.gmBlackBoxX > max_box || gm.gmBlackBoxY > max_box) {if(error)*error="font glyph too large or unreadable";return false;}
         if (!n) gm.gmBlackBoxX = gm.gmBlackBoxY = 0;
         std::vector<uint8_t> raw(n);
         if (n && GetGlyphOutlineW(state->dc, id, GGO_GRAY8_BITMAP | GGO_GLYPH_INDEX, &gm, n, raw.data(), &matrix) == GDI_ERROR) return false;
-        FfntGlyph g; g.code = 0x100000 + id; g.width = uint16_t(gm.gmBlackBoxX); g.height = uint16_t(gm.gmBlackBoxY);
-        g.advance = uint16_t(std::clamp<int>(gm.gmCellIncX, 0, 65535)); g.bearing = int16_t(gm.gmptGlyphOrigin.x);
-        g.top = int16_t(ascent - gm.gmptGlyphOrigin.y);
+        const unsigned raw_width = gm.gmBlackBoxX, raw_height = gm.gmBlackBoxY;
+        const unsigned padding = outline_padding && raw_width && raw_height ? kOutlinePadding : 0;
+        FfntGlyph g; g.code = 0x100000 + id; g.width = uint16_t(raw_width + padding * 2); g.height = uint16_t(raw_height + padding * 2);
+        g.advance = uint16_t(std::clamp<int>(gm.gmCellIncX, 0, 65535)); g.bearing = int16_t(gm.gmptGlyphOrigin.x - int(padding));
+        g.top = int16_t(ascent - gm.gmptGlyphOrigin.y - int(padding));
         if (n < ((gm.gmBlackBoxX + 3) & ~3u) * gm.gmBlackBoxY) { if(error)*error="font bitmap truncated";return false; }
         std::vector<uint8_t> alpha(size_t(g.width) * g.height);
-        const unsigned pitch = (unsigned(g.width) + 3) & ~3u;
-        for (unsigned y=0;y<g.height;++y) for (unsigned x=0;x<g.width;++x)
-            alpha[size_t(y)*g.width+x] = uint8_t(std::min(255u, unsigned(raw[size_t(y)*pitch+x])*255/64));
+        const unsigned pitch = (raw_width + 3) & ~3u;
+        for (unsigned y=0;y<raw_height;++y) for (unsigned x=0;x<raw_width;++x)
+            alpha[size_t(y + padding)*g.width + x + padding] = uint8_t(std::min(255u, unsigned(raw[size_t(y)*pitch+x])*255/64));
         composed_[g.code] = alpha; glyphs_.push_back(g);
         for (auto [code, glyph_id] : codes) if (glyph_id == id && !composed_.contains(code)) {
             g.code = code; composed_[code] = alpha; glyphs_.push_back(g);
