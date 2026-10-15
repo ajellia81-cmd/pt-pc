@@ -94,7 +94,10 @@ bool SubtitleTable::Load(Vfs& vfs, std::string_view language, std::span<const st
                     // Keep the original English timings, but map each timed slot to the corresponding Korean line
                     // instead of rejecting the entire Korean table and falling back to English.
                     for (size_t i = 0; i < entry.lines.size(); ++i) {
-                        const size_t translated = std::min(t.lines.size() - 1, i * t.lines.size() / entry.lines.size());
+                        // Map both ends exactly.  The radio news has 18 English timing slots but 19 Korean lines;
+                        // the old i * target / source calculation never selected its final Korean sentence.
+                        const size_t translated = entry.lines.size() > 1
+                            ? (t.lines.size() - 1) * i / (entry.lines.size() - 1) : 0;
                         auto& line = entry.lines[i].text;
                         line = *std::next(t.lines.begin(), translated);
                         std::replace(line.begin(), line.end(), '|', '\n');
