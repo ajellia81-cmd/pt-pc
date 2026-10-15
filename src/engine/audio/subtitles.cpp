@@ -88,8 +88,18 @@ bool SubtitleTable::Load(Vfs& vfs, std::string_view language, std::span<const st
         for (SubtitleEntry& entry : entries_) {
             bool found = false;
             auto translate = [&](const auto& table) {
-                for (const auto& t : table) if (t.key == entry.key && t.lines.size() == entry.lines.size()) {
-                    size_t i=0; for (auto text : t.lines) { auto& line=entry.lines[i++].text; line=text; std::replace(line.begin(),line.end(),'|','\n'); } found = true; break;
+                for (const auto& t : table) if (t.key == entry.key && !t.lines.empty()) {
+                    // Japanese and English packages occasionally divide one spoken thought at different points.
+                    // Keep the original English timings, but map each timed slot to the corresponding Korean line
+                    // instead of rejecting the entire Korean table and falling back to English.
+                    for (size_t i = 0; i < entry.lines.size(); ++i) {
+                        const size_t translated = std::min(t.lines.size() - 1, i * t.lines.size() / entry.lines.size());
+                        auto& line = entry.lines[i].text;
+                        line = t.lines[translated];
+                        std::replace(line.begin(), line.end(), '|', '\n');
+                    }
+                    found = true;
+                    break;
                 }
             };
             switch(translation_language) {case 7:translate(turkish::kSubtitles);break;case 8:translate(chinese::kSubtitles);break;case 9:translate(arabic::kSubtitles);break;case 10:translate(russian::kSubtitles);break;case 11:translate(ukrainian::kSubtitles);break;case 12:translate(czech::kSubtitles);break;case 13:translate(polish::kSubtitles);break;case 14:translate(korean::kSubtitles);break;}

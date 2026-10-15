@@ -76,7 +76,7 @@ constexpr const char* kLanguageKeys[] = {"op_sub_none", "op_sub_english", "op_su
     "op_sub_spanish", "op_sub_japanese", "op_sub_itlian", "op_sub_portuguese", "op_sub_turkish",
     "op_sub_chinese", "op_sub_arabic", "op_sub_russian", "op_sub_ukrainian", "op_sub_czech", "op_sub_polish", "op_sub_korean"};
 constexpr std::string_view kNativeLanguageNames[] = {"", "English", "Français", "Deutsch", "Español",
-    "日本語", "Italiano", "Português", "Türkçe", "Chinese (Simplified)", "Arabic", "Russian", "Ukrainian", "Czech", "Polish", "한국어"};
+    "日本語", "Italiano", "Português", "Türkçe", "Chinese (Simplified)", "Arabic", "Russian", "Ukrainian", "Czech", "Polish", "Korean"};
 static_assert(std::size(kLanguageKeys) == UiAssets::kLanguageCount + 1);
 static_assert(std::size(kNativeLanguageNames) == std::size(kLanguageKeys));
 

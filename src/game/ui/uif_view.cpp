@@ -294,6 +294,13 @@ void UifView::Draw(ui::UiBatch& batch, const UiCanvas& canvas, int language, flo
             text_style.font_height *= text_scale;
             text_style.text_space *= text_scale;
             text_style.line_space *= text_scale;
+            // Noto Sans KR has a taller apparent x-height than the original Latin/Japanese UI faces.
+            if (font_language == 14 && type != UiFontType::Movie) {
+                text_style.font_width *= .92f;
+                text_style.font_height *= .92f;
+                text_style.text_space *= .92f;
+                text_style.line_space *= .92f;
+            }
             if (state.text_line_pitch) text_style.line_space = *state.text_line_pitch - text_style.font_height * font->font.LineFactor();
             const UifInlinePicture* picture = state.inline_picture && state.inline_picture->texture >= 0 ? &*state.inline_picture : nullptr;
             // the picture's disc or keycap is one em high, with a quarter em of space on both sides
