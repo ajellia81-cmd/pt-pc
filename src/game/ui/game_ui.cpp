@@ -507,6 +507,15 @@ void GameUi::DrawSubtitle(ui::UiBatch& batch, const UiCanvas& canvas) {
     text_style.text_space += generator.font_space;
     text_style.line_space += generator.line_space;
     ui::NormalizeSubtitleStyle(text_style);
+    if (language == 14) {
+        // Noto Sans KR's full Hangul squares look appreciably larger than the original Japanese subtitle face at
+        // identical metrics.  Keep the original 26-unit subtitle line pitch while matching its visible ink size.
+        constexpr float kKoreanSubtitleScale = .82f;
+        text_style.font_width *= kKoreanSubtitleScale;
+        text_style.font_height *= kKoreanSubtitleScale;
+        text_style.text_space *= kKoreanSubtitleScale;
+        text_style.line_space = 26.0f - text_style.font_height * font->font.LineFactor();
+    }
     const glm::vec2 anchor = origin + generator.offset;
     const glm::vec2 lo_units = anchor + glm::vec2(box_min.x * size.x, box_min.y * size.y);
     const glm::vec2 hi_units = anchor + glm::vec2(box_max.x * size.x, box_max.y * size.y);
@@ -515,6 +524,20 @@ void GameUi::DrawSubtitle(ui::UiBatch& batch, const UiCanvas& canvas) {
     const glm::vec2 hi(UiCanvas::kWidth * 0.5f + std::max(lo_units.x, hi_units.x) * UiCanvas::kUnit,
                        UiCanvas::kHeight * 0.5f - std::min(lo_units.y, hi_units.y) * UiCanvas::kUnit);
     ui::TextLayout layout = ui::LayoutText(view.text, text_style, generator.auto_line_feed ? hi.x - lo.x : 0.0f);
+    if (language == 14) {
+        // GDI's Hangul glyph bearings put transparent side space before the first visible pixel.  The original
+        // Japanese FFNT's subtitle layout aligns visible ink, so remove that leading bearing per line as well.
+        layout.width = 0.0f;
+        for (ui::TextLine& line : layout.lines) {
+            if (!line.glyphs.empty()) {
+                float left = line.glyphs.front().position.x;
+                for (const ui::LaidGlyph& glyph : line.glyphs) left = std::min(left, glyph.position.x);
+                for (ui::LaidGlyph& glyph : line.glyphs) glyph.position.x -= left;
+                line.width = std::max(0.0f, line.width - left);
+            }
+            layout.width = std::max(layout.width, line.width);
+        }
+    }
     const ui::TextAlign block = generator.b_align == 3 ? Align(generator.h_align) : Align(generator.b_align);
     ui::PlaceText(layout, lo, hi, block, Align(generator.h_align), Align(generator.v_align), true);
     // under the PC letterbox the lines move up into the picture: their bottom (the glyph boxes, in the canvas' 1280x720) at least
