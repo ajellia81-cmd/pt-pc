@@ -24,6 +24,8 @@ inline std::string Characters(int language) {
  std::string out;for(int c=32;c<127;++c) out.push_back(char(c));
  auto add=[&](const auto& menu,const auto& subtitles){for(const auto& e:menu) out+=e.text;for(const auto& e:subtitles)for(auto line:e.lines) out+=line;};
  switch(language){case 7:add(turkish::kMenu,turkish::kSubtitles);break;case 8:add(chinese::kMenu,chinese::kSubtitles);break;case 9:add(arabic::kMenu,arabic::kSubtitles);break;case 10:add(russian::kMenu,russian::kSubtitles);break;case 11:add(ukrainian::kMenu,ukrainian::kSubtitles);break;case 12:add(czech::kMenu,czech::kSubtitles);break;case 13:add(polish::kMenu,polish::kSubtitles);break;case 14:add(korean::kMenu,korean::kSubtitles);break;}
+ // The option screen adds the Korean language label to the original Chinese UI data.
+ if (language == 8) out += "韩国语";
  // the whole Russian and Ukrainian alphabet, for text that is not in the tables (a microphone's or a mod's name)
  if (language == 10 || language == 11) {
   auto utf8 = [&](uint32_t c) { out.push_back(char(0xC0 | (c >> 6))); out.push_back(char(0x80 | (c & 0x3F))); };

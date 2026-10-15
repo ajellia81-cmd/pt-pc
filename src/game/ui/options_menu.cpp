@@ -79,7 +79,7 @@ constexpr std::string_view kNativeLanguageNames[] = {"", "English", "Français",
     "日本語", "Italiano", "Português", "Türkçe", "Chinese (Simplified)", "Arabic", "Russian", "Ukrainian", "Czech", "Polish", "Korean"};
 // Korean was added after the original language files.  Keep its label translated in every UI language instead of
 // permanently falling back to the English native name.
-constexpr std::string_view kKoreanLanguageNames[] = {"Korean", "Coréen", "Koreanisch", "Coreano", "韓国語", "Coreano", "Coreano", "Korece",
+constexpr std::string_view kKoreanLanguageNames[] = {"Korean", "Coréen", "Koreanisch", "Coreano", "コリア語", "Coreano", "Coreano", "Korece",
     "韩语", "الكورية", "Корейский", "Корейська", "Korejština", "Koreański", "한국어"};
 static_assert(std::size(kLanguageKeys) == UiAssets::kLanguageCount + 1);
 static_assert(std::size(kNativeLanguageNames) == std::size(kLanguageKeys));

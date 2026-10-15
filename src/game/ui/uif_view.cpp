@@ -78,22 +78,13 @@ void DrawText(ui::UiBatch& batch, const UiCanvas& canvas, const UiFont& font, co
             if (!g.glyph) {
                 continue;
             }
-            glm::vec2 p0 = canvas.ToTarget(g.position) + snap;
-            glm::vec2 p1 = canvas.ToTarget(g.position + g.size) + snap;
+            const glm::vec2 p0 = canvas.ToTarget(g.position) + snap;
+            const glm::vec2 p1 = canvas.ToTarget(g.position + g.size) + snap;
             // 0xD36980: the glyph's UV rect reaches half a texel past its cell on every side
             const float border = font.crisp ? 0.0f : 0.5f;
-            glm::vec2 uv0((static_cast<float>(g.glyph->atlas_x) - border) / aw, (static_cast<float>(g.glyph->atlas_y) - border) / ah);
-            glm::vec2 uv1((static_cast<float>(g.glyph->atlas_x + g.glyph->width) + border) / aw,
-                          (static_cast<float>(g.glyph->atlas_y + g.glyph->height) + border) / ah);
-            if (shade == ui::UiShade::Border && font.font.Unicode()) {
-                // Original FFNT subtitle glyphs include transparent pixels around their ink.  Generated Unicode
-                // glyphs are tight, so give the Draw2D_Border shader room to draw its black rim outside the ink.
-                constexpr float kOutlinePixels = 2.0f;
-                p0 -= glm::vec2(kOutlinePixels);
-                p1 += glm::vec2(kOutlinePixels);
-                uv0 -= glm::vec2(kOutlinePixels / aw, kOutlinePixels / ah);
-                uv1 += glm::vec2(kOutlinePixels / aw, kOutlinePixels / ah);
-            }
+            const glm::vec2 uv0((static_cast<float>(g.glyph->atlas_x) - border) / aw, (static_cast<float>(g.glyph->atlas_y) - border) / ah);
+            const glm::vec2 uv1((static_cast<float>(g.glyph->atlas_x + g.glyph->width) + border) / aw,
+                                (static_cast<float>(g.glyph->atlas_y + g.glyph->height) + border) / ah);
             const ui::UiVertex a{p0, uv0, color};
             const ui::UiVertex b{{p1.x, p0.y}, {uv1.x, uv0.y}, color};
             const ui::UiVertex c{p1, uv1, color};
