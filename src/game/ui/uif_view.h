@@ -65,6 +65,8 @@ struct UifNodeState {
     std::optional<std::vector<glm::vec2>> uvs;
     std::optional<UifInlinePicture> inline_picture;
     std::optional<UiFontType> font_type;
+    // A single localized label may need a supplied Unicode fallback font (for example 韓 in the Japanese menu).
+    std::optional<int> font_language;
     std::optional<glm::vec3> anim_translate;
     std::optional<glm::vec3> anim_scale;
     std::optional<glm::vec4> anim_color;

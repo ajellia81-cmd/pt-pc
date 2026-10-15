@@ -79,7 +79,7 @@ constexpr std::string_view kNativeLanguageNames[] = {"", "English", "Français",
     "日本語", "Italiano", "Português", "Türkçe", "Chinese (Simplified)", "Arabic", "Russian", "Ukrainian", "Czech", "Polish", "Korean"};
 // Korean was added after the original language files.  Keep its label translated in every UI language instead of
 // permanently falling back to the English native name.
-constexpr std::string_view kKoreanLanguageNames[] = {"Korean", "Coréen", "Koreanisch", "Coreano", "コリア語", "Coreano", "Coreano", "Korece",
+constexpr std::string_view kKoreanLanguageNames[] = {"Korean", "Coréen", "Koreanisch", "Coreano", "韓国語", "Coreano", "Coreano", "Korece",
     "韩语", "الكورية", "Корейский", "Корейська", "Korejština", "Koreański", "한국어"};
 static_assert(std::size(kLanguageKeys) == UiAssets::kLanguageCount + 1);
 static_assert(std::size(kNativeLanguageNames) == std::size(kLanguageKeys));
@@ -489,6 +489,8 @@ void OptionsMenu::ApplyTexts() {
         if (language_index >= 8 && (view_.State(id).text->empty() || *view_.State(id).text == kLanguageKeys[language_index])) {
             view_.State(id).text = language_index == UiAssets::kLanguageCount
                 ? std::string(kKoreanLanguageNames[text_language_]) : std::string(kNativeLanguageNames[language_index]);
+            // The original Japanese FFNT omits 韓.  Render this one label with the bundled CJK font instead.
+            if (language_index == UiAssets::kLanguageCount && text_language_ == 4) view_.State(id).font_language = 8;
         }
     }
     set(kCameraLabel, "op_camera_setting");

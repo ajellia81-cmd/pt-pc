@@ -274,7 +274,7 @@ void UifView::Draw(ui::UiBatch& batch, const UiCanvas& canvas, int language, flo
             }
             batch.Draw(vertices, params, ui::UiShade::Material, blend);
         } else if (state.text && !state.text->empty()) {
-            const int font_language = language;
+            const int font_language = state.font_language.value_or(language);
             const UiFontStyle* style = assets_->FontStyleByHash(node.font_name, font_language);
             const UiFontType type = state.font_type.value_or(style && style->name.starts_with("sbt") ? UiFontType::Movie : UiFontType::System);
             UiFont* font = assets_->Font(type, font_language);
