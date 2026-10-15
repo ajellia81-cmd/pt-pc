@@ -70,7 +70,7 @@ inline constexpr Text kMenu[] = {
     {"pc_update_available","새 버전 {1} 게시됨 (현재 {2})"},
     {"pc_credits_by","제작: LoreanXavier"},
     {"pc_credits_dlss","이 게임은 NVIDIA DLSS를 사용합니다."},
-    {"pc_credits_licenses","전체 라이센스 텍스트는 pt.exe 옆의 licenses 폴더에 있습니다."},
+    {"pc_credits_licenses","라이선스 전문은 pt.exe와 같은 위치에 있는 licenses 폴더에서 확인할 수 있습니다."},
     {"pc_credits_konami","P.T. 는 Konami Digital Entertainment와 Kojima Productions가 소유하고 있습니다."},
     {"pc_credits_fan","이 포트는 Konami, NVIDIA, AMD 및 Intel과 제휴하거나 보증하지 않는 비공식 팬 프로젝트입니다."},
     {"pc_note_street_walk","엔딩의 거리를 1인칭으로 걷습니다. 엑스트라에서 종료할 수 있습니다."},
