@@ -3176,16 +3176,10 @@ uint32_t SoundEngine::RenderVoice(Voice& v, uint32_t offset, uint32_t frames) {
         v.gain_init = true;
     }
     // Preserve a mono, post-filter copy for the native Windows spatial path before the legacy speaker matrix folds it.
-    // Effects and the non-spatial bed continue through the normal bus renderer; the Windows sink consumes this synchronously.
-    // A spatial object receives its direct signal before the shared bus chain. Keep authored effect voices in
-    // the conventional renderer rather than duplicating a shared effect per object, which corrupts the mix.
-    bool has_intermediate_effects = false;
-    for (BusRuntime* effect_bus = Bus(v.bus_id); effect_bus && effect_bus != master_; effect_bus = effect_bus->parent) {
-        if (!effect_bus->effects.empty()) {
-            has_intermediate_effects = true;
-            break;
-        }
-    }
+    // Every eligible 3D voice takes this direct path, including radios, doors and character voices whose bus also has effects.
+    // Auxiliary sends still feed the conventional shared effect buses below, so room tails are mixed once instead of being
+    // cloned into every dynamic object. Restricting effect-bus voices to the bed made those common emitters lose their true
+    // rear position altogether.
     // Dynamic objects bypass the stereo bus renderer, but must retain the same gain chain that
     // their dry signal would have received on its way to the master.  Without this, a spatial
     // object skips per-bus attenuation and can hit the endpoint already clipped.
@@ -3193,7 +3187,7 @@ uint32_t SoundEngine::RenderVoice(Voice& v, uint32_t offset, uint32_t frames) {
     const float spatial_chain0 = bus ? bus->chain_prev : 1.0f;
     const float spatial_chain1 = bus ? bus->chain : 1.0f;
     bool routed_to_spatial = false;
-    if (spatial_sink_ && !has_intermediate_effects && v.channels == 1 && v.node && v.node->positioning && v.node->positioning->has_3d && v.node->positioning->spatialized) {
+    if (spatial_sink_ && v.channels == 1 && v.node && v.node->positioning && v.node->positioning->has_3d && v.node->positioning->spatialized) {
         const float normalization = v.mix_l[0] + v.mix_r[0];
         if (normalization > 1e-6f) {
             spatial_mono_.resize(produced);
