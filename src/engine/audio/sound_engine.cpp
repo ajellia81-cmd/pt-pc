@@ -2760,6 +2760,14 @@ void SoundEngine::UpdateVoiceParams(Voice& v) {
                 for (int s = 0; s < kSpeakers; ++s) {
                     v.sc_matrix[0][s] = gains[kFl][s];
                 }
+                if (std::getenv("PT_TRACE_SPATIAL") != nullptr && !v.panner_trace_logged) {
+                    LogInfo("audio: panner voice {} node {} object {} rel ({:.2f}, {:.2f}, {:.2f}) azimuth {:.1f} deg "
+                            "gains FL {:.3f} FR {:.3f} FC {:.3f} BL {:.3f} BR {:.3f} SL {:.3f} SR {:.3f}",
+                            v.serial, v.node->id, v.object, rel.x, rel.y, rel.z, glm::degrees(azimuth), gains[kFl][kFl],
+                            gains[kFl][kFr], gains[kFl][kFc], gains[kFl][kBl], gains[kFl][kBr], gains[kFl][kSl],
+                            gains[kFl][kSr]);
+                    v.panner_trace_logged = true;
+                }
             } else {
                 uint32_t mask = v.media->Info().channel_mask;
                 if (std::popcount(mask) != static_cast<int>(v.media->Channels())) {

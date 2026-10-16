@@ -365,6 +365,7 @@ private:
         // PT_TRACE_SPATIAL writes the routing decision once per positional voice.  Keeping this
         // on the voice avoids turning the audio callback log into a per-render-period trace.
         bool spatial_trace_logged = false;
+        bool panner_trace_logged = false;
     };
 
     struct BusRuntime {
