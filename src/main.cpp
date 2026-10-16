@@ -4630,6 +4630,18 @@ int RunGame(App& app, pt::Vfs& vfs) {
     if (!game.Init(config)) {
         return 1;
     }
+    // Pipeline warm-up can draw before the controller loads the save.  Resolve the
+    // saved subtitle language here so that the very first boot screen is not
+    // briefly shown in English.
+    int boot_ui_language = std::clamp(pt::game::DefaultOptionsForLocale(pt::game::SystemLanguageTag()).subtitle_language, 0,
+                                      pt::game::UiAssets::kLanguageCount - 1);
+    if (config.use_save) {
+        pt::game::SaveStore store;
+        store.SetDirectory(config.save_path.parent_path(), "PT_Save_Data");
+        if (const auto save = store.Load()) {
+            boot_ui_language = std::clamp(save->options.subtitle_language, 0, pt::game::UiAssets::kLanguageCount - 1);
+        }
+    }
     pt::boot::Phase("game data");
     game.Speedrun().SetMode(app.settings.extras.speedrun);
     if (!app.settings_path.empty()) game.Speedrun().SetRecordDirectory(std::filesystem::absolute(app.settings_path).parent_path());
@@ -5272,7 +5284,7 @@ int RunGame(App& app, pt::Vfs& vfs) {
             } else {
                 ui.SetShaderScreen(std::format("pc_boot_preparing_shaders{}{}", pt::game::kPcNoteArgument,
                                                100u * pipeline_warmup.Finished() / std::max(1u, pipeline_warmup.Total())),
-                                   game.Options().subtitle_language);
+                                   boot_ui_language);
             }
         }
         if (texture_screen && !shader_screen) {
