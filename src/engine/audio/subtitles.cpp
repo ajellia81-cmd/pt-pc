@@ -103,13 +103,15 @@ bool SubtitleTable::Load(Vfs& vfs, std::string_view language, std::span<const st
                                          upper == lower ? source_lines[lower].end_seconds : source_lines[upper].start_seconds,
                                          fraction);
                     };
-                    for (size_t i = 0; i < t.lines.size(); ++i) {
+                    size_t i = 0;
+                    for (const std::string_view translated : t.lines) {
                         SubtitleLine& line = entry.lines[i];
                         line.start_seconds = time_at(static_cast<float>(i) * source_lines.size() / t.lines.size());
                         line.end_seconds = i + 1 == t.lines.size() ? source_lines.back().end_seconds
                             : time_at(static_cast<float>(i + 1) * source_lines.size() / t.lines.size());
-                        line.text = t.lines[i];
+                        line.text = translated;
                         std::replace(line.text.begin(), line.text.end(), '|', '\n');
+                        ++i;
                     }
                     found = true;
                     break;
