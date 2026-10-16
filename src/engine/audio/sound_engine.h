@@ -362,10 +362,11 @@ private:
         std::array<std::vector<float>, 8> sc_rs;
         float sc_lpf_hist[8][4] = {};
         float sc_dry_prev = 0.0f;
-        // PT_TRACE_SPATIAL writes the routing decision once per positional voice.  Keeping this
-        // on the voice avoids turning the audio callback log into a per-render-period trace.
-        bool spatial_trace_logged = false;
-        bool panner_trace_logged = false;
+        // PT_TRACE_SPATIAL samples routing twice per second per positional voice.  This is
+        // deliberately periodic rather than per render period so a trace captures a moving
+        // listener/source without flooding the audio callback log.
+        uint64_t spatial_trace_next = 0;
+        uint64_t panner_trace_next = 0;
     };
 
     struct BusRuntime {

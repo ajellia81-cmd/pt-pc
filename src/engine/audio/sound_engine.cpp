@@ -2760,13 +2760,13 @@ void SoundEngine::UpdateVoiceParams(Voice& v) {
                 for (int s = 0; s < kSpeakers; ++s) {
                     v.sc_matrix[0][s] = gains[kFl][s];
                 }
-                if (std::getenv("PT_TRACE_SPATIAL") != nullptr && !v.panner_trace_logged) {
+                if (std::getenv("PT_TRACE_SPATIAL") != nullptr && now_ >= v.panner_trace_next) {
                     LogInfo("audio: panner voice {} node {} object {} rel ({:.2f}, {:.2f}, {:.2f}) azimuth {:.1f} deg "
                             "gains FL {:.3f} FR {:.3f} FC {:.3f} BL {:.3f} BR {:.3f} SL {:.3f} SR {:.3f}",
                             v.serial, v.node->id, v.object, rel.x, rel.y, rel.z, glm::degrees(azimuth), gains[kFl][kFl],
                             gains[kFl][kFr], gains[kFl][kFc], gains[kFl][kBl], gains[kFl][kBr], gains[kFl][kSl],
                             gains[kFl][kSr]);
-                    v.panner_trace_logged = true;
+                    v.panner_trace_next = now_ + static_cast<uint64_t>(kOutputRate / 2);
                 }
             } else {
                 uint32_t mask = v.media->Info().channel_mask;
@@ -3263,18 +3263,18 @@ uint32_t SoundEngine::RenderVoice(Voice& v, uint32_t offset, uint32_t frames) {
                 spatial_mono_[i] = std::clamp(mono * gain * master_gain_, -1.0f, 1.0f);
             }
             routed_to_spatial = spatial_sink_->SubmitMono(v.serial, spatial_render_offset_ + offset, spatial_mono_, position);
-            if (trace_spatial && !v.spatial_trace_logged) {
+            if (trace_spatial && now_ >= v.spatial_trace_next) {
                 LogInfo("audio: spatial voice {} node {} object {} channels {} -> {} at ({:.2f}, {:.2f}, {:.2f})", v.serial,
                         v.node->id, v.object, v.channels, routed_to_spatial ? "dynamic" : "bed (no dynamic slot)", position.x,
                         position.y, position.z);
-                v.spatial_trace_logged = true;
+                v.spatial_trace_next = now_ + static_cast<uint64_t>(kOutputRate / 2);
             }
         }
     }
-    if (trace_spatial && positional_voice && !v.spatial_trace_logged) {
+    if (trace_spatial && positional_voice && !routed_to_spatial && now_ >= v.spatial_trace_next) {
         LogInfo("audio: spatial voice {} node {} object {} stays in bed (sink {}, spatialized {}, channels {})", v.serial, v.node->id,
                 v.object, spatial_sink_ ? "on" : "off", v.node->positioning->spatialized ? "yes" : "no", v.channels);
-        v.spatial_trace_logged = true;
+        v.spatial_trace_next = now_ + static_cast<uint64_t>(kOutputRate / 2);
     }
     const float inv = 1.0f / static_cast<float>(produced);
     const float block_inv = 1.0f / static_cast<float>(frames);
