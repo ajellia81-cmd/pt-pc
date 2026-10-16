@@ -27,6 +27,12 @@ constexpr int kMaxPlayDepth = 32;
 constexpr uint16_t kRumbleDevice = 406;
 constexpr float kCenterGain = 0.70710678f;
 constexpr uint64_t kEbootFrame = 1024;
+// The rear centre is the -pi/+pi seam of Wwise's discrete panner.  A locator that
+// is visually centred can land on either side of that seam by a tiny transform
+// rounding error, making a centred rear cue favour one surround speaker.  Keep a
+// deliberately narrow centre lane; meaningful rear-left/right placement remains
+// untouched.
+constexpr float kRearCentreHalfAngle = 4.0f * 3.14159265358979323846f / 180.0f;
 
 uint64_t MsToSamples(double ms) {
     return ms <= 0.0 ? 0 : static_cast<uint64_t>(std::llround(ms * kSamplesPerMs));
@@ -108,6 +114,9 @@ void AddSpeakerPower(float center, int index, float* power) {
 }
 
 void SpeakerGains(float azimuth, float center, float spread, uint32_t channels, float (*gains)[kSpeakers]) {
+    if (std::fabs(std::fabs(azimuth) - 3.14159265358979323846f) <= kRearCentreHalfAngle) {
+        azimuth = std::copysign(3.14159265358979323846f, azimuth);
+    }
     channels = std::clamp<uint32_t>(channels, 1, 7);
     const float width = spread * 2.56f / static_cast<float>(channels);
     const int points = static_cast<int>(width * kSpreadDensity + 1.0f) + 1;
@@ -3219,8 +3228,14 @@ uint32_t SoundEngine::RenderVoice(Voice& v, uint32_t offset, uint32_t frames) {
             const ObjectState& state = object == objects_.end() ? kEmptyObject : object->second;
             const glm::vec3 relative = EmitterPosition(v, state) - listener_position_;
             // The game's listener basis points forward, while Windows Spatial Sound's listener-space Z points back.
-            const glm::vec3 position(glm::dot(relative, listener_right_), glm::dot(relative, listener_up_),
-                                     -glm::dot(relative, listener_forward_));
+            glm::vec3 position(glm::dot(relative, listener_right_), glm::dot(relative, listener_up_),
+                               -glm::dot(relative, listener_forward_));
+            // Apply the same narrow rear-centre lane as the conventional 5.1/7.1
+            // panner.  Otherwise a nearly-zero x coordinate is enough for the
+            // Windows object renderer to choose a rear-left or rear-right image.
+            if (position.z > 0.0f && std::fabs(position.x) <= position.z * std::tan(kRearCentreHalfAngle)) {
+                position.x = 0.0f;
+            }
             for (uint32_t i = 0; i < produced; ++i) {
                 const float w = (static_cast<float>(i) + 1.0f) / static_cast<float>(produced);
                 const float fade = fade0 + (fade1 - fade0) * w;
