@@ -70,9 +70,13 @@ constexpr int kFirstSubtitleSelector = 4;
 constexpr int kLastSubtitleSelector = kFirstSubtitleSelector + UiAssets::kLanguageCount;
 constexpr const char* kLanguageKeys[] = {"op_sub_none", "op_sub_english", "op_sub_french", "op_sub_german",
     "op_sub_spanish", "op_sub_japanese", "op_sub_itlian", "op_sub_portuguese", "op_sub_turkish",
-    "op_sub_chinese", "op_sub_arabic", "op_sub_russian", "op_sub_ukrainian", "op_sub_czech", "op_sub_polish"};
+    "op_sub_chinese", "op_sub_arabic", "op_sub_russian", "op_sub_ukrainian", "op_sub_czech", "op_sub_polish", "op_sub_korean"};
 constexpr std::string_view kNativeLanguageNames[] = {"", "English", "Français", "Deutsch", "Español",
-    "日本語", "Italiano", "Português", "Türkçe", "Chinese (Simplified)", "Arabic", "Russian", "Ukrainian", "Czech", "Polish"};
+    "日本語", "Italiano", "Português", "Türkçe", "Chinese (Simplified)", "Arabic", "Russian", "Ukrainian", "Czech", "Polish", "Korean"};
+// Korean was added after the original language files.  Keep its label translated in every UI language instead of
+// permanently falling back to the English native name.
+constexpr std::string_view kKoreanLanguageNames[] = {"Korean", "Coréen", "Koreanisch", "Coreano", "韓国語", "Coreano", "Coreano", "Korece",
+    "韩语", "الكورية", "Корейский", "Корейська", "Korejština", "Koreański", "한국어"};
 static_assert(std::size(kLanguageKeys) == UiAssets::kLanguageCount + 1);
 static_assert(std::size(kNativeLanguageNames) == std::size(kLanguageKeys));
 
@@ -495,9 +499,17 @@ void OptionsMenu::ApplyTexts() {
     set(kSubtitleLabel, "op_subtitles_setting");
     for (int language_index = 0; language_index <= UiAssets::kLanguageCount; ++language_index) {
         const uint16_t id = language_texts_[language_index];
+        view_.State(id).font_language.reset();
+        view_.State(id).font_scale.reset();
         set(id, kLanguageKeys[language_index]);
         if (language_index >= 8 && (view_.State(id).text->empty() || *view_.State(id).text == kLanguageKeys[language_index])) {
-            view_.State(id).text = std::string(kNativeLanguageNames[language_index]);
+            view_.State(id).text = language_index == UiAssets::kLanguageCount
+                ? std::string(kKoreanLanguageNames[text_language_]) : std::string(kNativeLanguageNames[language_index]);
+            // The original Japanese FFNT omits 韓.  Render this one label with the bundled CJK font instead.
+            if (language_index == UiAssets::kLanguageCount && text_language_ == 4) {
+                view_.State(id).font_language = 8;
+                view_.State(id).font_scale = .80f;
+            }
         }
     }
     set(kCameraLabel, "op_camera_setting");

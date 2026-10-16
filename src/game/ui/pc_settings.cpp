@@ -32,6 +32,8 @@ constexpr Entry kTexts[] = {
     {"pc_hdr_peak_auto", {"Auto"}},
     {"pc_surround", {"Surround output"}},
     {"pc_note_surround", {"Uses the output device's 5.1 or 7.1 layout after restarting. Stereo devices stay stereo."}},
+    {"pc_dolby_atmos", {"Dolby Atmos for Home Theater"}},
+    {"pc_note_dolby_atmos", {"Windows Spatial Sound output after restarting. If Dolby Atmos is unavailable, the normal output is used."}},
     {"pc_rumble_profile", {"Rumble mode"}},
     {"pc_rumble_original", {"Original"}},
     {"pc_rumble_enhanced", {"Enhanced"}},
