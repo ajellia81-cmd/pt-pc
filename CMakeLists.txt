@@ -245,8 +245,12 @@ add_dependencies(pt pt_shaders)
 if(WIN32)
   # the same shaders as DXIL for the D3D12 backend (cmake/D3D12Shaders.cmake); the Vulkan SPIR-V above is unchanged; the D3D12 backend loads these
   option(PT_D3D12_SHADERS "Translate the shaders to DXIL (GLSL -> SPIR-V -> SPIRV-Cross -> DXC) for the D3D12 backend" ON)
-  if(PT_D3D12_SHADERS)
+  # v1.0.5's source archive omits the local SPIR-V-to-HLSL helper.  Keep the normal Vulkan build usable instead of
+  # failing configuration; a complete source checkout still enables the optional D3D12 shader path automatically.
+  if(PT_D3D12_SHADERS AND EXISTS "${CMAKE_SOURCE_DIR}/tools/dx12/spirv_to_hlsl.cpp")
     include(cmake/D3D12Shaders.cmake)
+  elseif(PT_D3D12_SHADERS)
+    message(WARNING "D3D12 shaders disabled: tools/dx12/spirv_to_hlsl.cpp is not present in this source checkout")
   endif()
   # the D3D12 renderer backend and its test (docs/rhi.md, stage b); the game does not link it yet
   option(PT_D3D12_BACKEND "Build the Direct3D 12 renderer backend library and its test" ON)
@@ -352,8 +356,10 @@ target_link_libraries(pt_unicode_paths_test PRIVATE pt_engine)
 # the installer's ASCII file name rules (setup_core.h) are checked under a Turkish locale too
 target_include_directories(pt_unicode_paths_test PRIVATE installer/Native)
 if(WIN32)
-  target_sources(pt_unicode_paths_test PRIVATE tests/unicode_paths_test.rc)
-  set_source_files_properties(tests/unicode_paths_test.rc PROPERTIES OBJECT_DEPENDS "${CMAKE_SOURCE_DIR}/tests/unicode_paths_test.manifest")
+  if(EXISTS "${CMAKE_SOURCE_DIR}/tests/unicode_paths_test.rc")
+    target_sources(pt_unicode_paths_test PRIVATE tests/unicode_paths_test.rc)
+    set_source_files_properties(tests/unicode_paths_test.rc PROPERTIES OBJECT_DEPENDS "${CMAKE_SOURCE_DIR}/tests/unicode_paths_test.manifest")
+  endif()
   target_link_options(pt_unicode_paths_test PRIVATE /MANIFEST:NO)
   target_link_libraries(pt_unicode_paths_test PRIVATE shell32)
 endif()
