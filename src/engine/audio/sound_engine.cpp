@@ -33,10 +33,10 @@ constexpr uint64_t kEbootFrame = 1024;
 // deliberately bounded centre lane.  The game reports a number of fixed rear
 // locators a little off the listener's centre line (camera/locator origins do
 // not coincide), which was still enough for a clearly rear-centre cue to favour
-// one speaker with the previous 4 degree lane.  Fifteen degrees absorbs that
+// one speaker with the previous 4 degree lane.  Twenty degrees absorbs that
 // authoring offset while leaving intentionally rear-left/right cues outside the
 // lane untouched.
-constexpr float kRearCentreHalfAngle = 15.0f * 3.14159265358979323846f / 180.0f;
+constexpr float kRearCentreHalfAngle = 20.0f * 3.14159265358979323846f / 180.0f;
 
 uint64_t MsToSamples(double ms) {
     return ms <= 0.0 ? 0 : static_cast<uint64_t>(std::llround(ms * kSamplesPerMs));
