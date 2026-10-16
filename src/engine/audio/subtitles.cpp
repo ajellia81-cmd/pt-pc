@@ -90,7 +90,7 @@ bool SubtitleTable::Load(Vfs& vfs, std::string_view language, std::span<const st
         for (SubtitleEntry& entry : entries_) {
             bool found = false;
             auto translate = [&](const auto& table) {
-                for (const auto& t : table) if (t.key == entry.key && !t.lines.empty()) {
+                for (const auto& t : table) if (t.key == entry.key && t.lines.size() != 0) {
                     // The source package and Korean can split a spoken thought at different places.  Keep the source
                     // duration and distribute it across the translated lines instead of silently dropping text.
                     const std::vector<SubtitleLine> source_lines = entry.lines;
