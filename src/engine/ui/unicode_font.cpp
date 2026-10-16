@@ -5,9 +5,6 @@
 #include <array>
 #include <cstdio>
 
-// Unicode fonts for the languages the original did not ship (Turkish, Chinese, Arabic, Russian, Ukrainian, Czech): the bundled Noto
-// fonts rasterised and shaped by the system on Windows (GDI and Uniscribe, below), and by HarfBuzz and stb_truetype
-// elsewhere (unicode_font_harfbuzz.cpp).
 namespace pt::ui {
 uint8_t FfntFont::Coverage(const FfntGlyph& glyph, int x, int y) const {
     if (unicode_) {
@@ -33,9 +30,7 @@ struct UnicodeFontState {
     ~UnicodeFontState() { ScriptFreeCache(&cache); if (dc) { SelectObject(dc, previous); DeleteObject(font); DeleteDC(dc); } }
 };
 namespace {
-// The added languages' fonts: Noto Sans (Latin, Cyrillic), Noto Sans SC, and for Arabic Noto Kufi Arabic in the menus and
-// Noto Naskh Arabic in the subtitles (the Naskh book hand reads best in running text, the Kufi matches the menus' plain sans)
-constexpr const wchar_t* kBundledFonts[] = {L"NotoSans.ttf", L"NotoSansSC.ttf", L"NotoSansKR.ttf", L"NotoKufiArabic.ttf", L"NotoNaskhArabic.ttf"};
+constexpr const wchar_t* kBundledFonts[] = {L"NotoSans.ttf", L"NotoSansSC.ttf", L"NotoKufiArabic.ttf", L"NotoNaskhArabic.ttf"};
 struct PrivateFonts {
     std::vector<std::wstring> paths;
     PrivateFonts() {
@@ -56,14 +51,13 @@ std::wstring Wide(std::string_view text) {
     return out;
 }
 }
-bool FfntFont::LoadUnicodeFont(std::string_view family, std::string_view characters, bool rtl, std::string* error, int weight,
-                               bool outline_padding) {
+bool FfntFont::LoadUnicodeFont(std::string_view family, std::string_view characters, bool rtl, std::string* error) {
     static PrivateFonts resources;
     if (resources.paths.size() != std::size(kBundledFonts)) { if (error) *error = "bundled fonts missing"; return false; }
     auto state = std::make_shared<UnicodeFontState>();
     state->dc = CreateCompatibleDC(nullptr);
     const auto name = Wide(family);
-    state->font = CreateFontW(-48, 0, 0, 0, std::clamp(weight, 1, 1000), FALSE, FALSE, FALSE, DEFAULT_CHARSET,
+    state->font = CreateFontW(-48, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
         OUT_TT_ONLY_PRECIS, CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY, DEFAULT_PITCH, name.c_str());
     if (!state->dc || !state->font) { if (error) *error = "Unicode font allocation failed"; return false; }
     state->previous = SelectObject(state->dc, state->font); state->rtl = rtl;
@@ -90,9 +84,6 @@ bool FfntFont::LoadUnicodeFont(std::string_view family, std::string_view charact
             for(int g=0;g<glyph_count;++g) ids.insert(shaped[g]);
         }
     }
-    // The line is as tall as the font's own metrics, except for Arabic: Noto Kufi's and Naskh's ascent and descent (1.50 and 0.65 em)
-    // leave room for marks stacked far beyond what the texts use, which made every description too tall for its box (all 143
-    // were shrunk). Its line runs from the highest to the lowest ink of the glyphs the texts shape to, plus 2 pixels.
     int ascent = tm.tmAscent, height = tm.tmHeight;
     if (rtl) {
         int above = 0, below = 0;
@@ -109,7 +100,6 @@ bool FfntFont::LoadUnicodeFont(std::string_view family, std::string_view charact
         }
     }
     if (rtl) {
-        // Arabic contextual forms and ligatures have glyph IDs without standalone Unicode code points.
         unsigned char maxp[6]{};
         if (GetFontData(state->dc, 0x7078616d, 0, maxp, 6) == GDI_ERROR) return false;
         const unsigned count = (unsigned(maxp[4]) << 8) | maxp[5];
@@ -121,22 +111,18 @@ bool FfntFont::LoadUnicodeFont(std::string_view family, std::string_view charact
     for (auto id : ids) {
         GLYPHMETRICS gm{};
         const DWORD n = GetGlyphOutlineW(state->dc, id, GGO_GRAY8_BITMAP | GGO_GLYPH_INDEX, &gm, 0, nullptr, &matrix);
-        constexpr unsigned kOutlinePadding = 2;
-        const unsigned max_box = outline_padding ? 1016 : 1020;
-        if (n == GDI_ERROR || gm.gmBlackBoxX > max_box || gm.gmBlackBoxY > max_box) {if(error)*error="font glyph too large or unreadable";return false;}
+        if (n == GDI_ERROR || gm.gmBlackBoxX > 1020 || gm.gmBlackBoxY > 1020) {if(error)*error="font glyph too large or unreadable";return false;}
         if (!n) gm.gmBlackBoxX = gm.gmBlackBoxY = 0;
         std::vector<uint8_t> raw(n);
         if (n && GetGlyphOutlineW(state->dc, id, GGO_GRAY8_BITMAP | GGO_GLYPH_INDEX, &gm, n, raw.data(), &matrix) == GDI_ERROR) return false;
-        const unsigned raw_width = gm.gmBlackBoxX, raw_height = gm.gmBlackBoxY;
-        const unsigned padding = outline_padding && raw_width && raw_height ? kOutlinePadding : 0;
-        FfntGlyph g; g.code = 0x100000 + id; g.width = uint16_t(raw_width + padding * 2); g.height = uint16_t(raw_height + padding * 2);
-        g.advance = uint16_t(std::clamp<int>(gm.gmCellIncX, 0, 65535)); g.bearing = int16_t(gm.gmptGlyphOrigin.x - int(padding));
-        g.top = int16_t(ascent - gm.gmptGlyphOrigin.y - int(padding));
+        FfntGlyph g; g.code = 0x100000 + id; g.width = uint16_t(gm.gmBlackBoxX); g.height = uint16_t(gm.gmBlackBoxY);
+        g.advance = uint16_t(std::clamp<int>(gm.gmCellIncX, 0, 65535)); g.bearing = int16_t(gm.gmptGlyphOrigin.x);
+        g.top = int16_t(ascent - gm.gmptGlyphOrigin.y);
         if (n < ((gm.gmBlackBoxX + 3) & ~3u) * gm.gmBlackBoxY) { if(error)*error="font bitmap truncated";return false; }
         std::vector<uint8_t> alpha(size_t(g.width) * g.height);
-        const unsigned pitch = (raw_width + 3) & ~3u;
-        for (unsigned y=0;y<raw_height;++y) for (unsigned x=0;x<raw_width;++x)
-            alpha[size_t(y + padding)*g.width + x + padding] = uint8_t(std::min(255u, unsigned(raw[size_t(y)*pitch+x])*255/64));
+        const unsigned pitch = (unsigned(g.width) + 3) & ~3u;
+        for (unsigned y=0;y<g.height;++y) for (unsigned x=0;x<g.width;++x)
+            alpha[size_t(y)*g.width+x] = uint8_t(std::min(255u, unsigned(raw[size_t(y)*pitch+x])*255/64));
         composed_[g.code] = alpha; glyphs_.push_back(g);
         for (auto [code, glyph_id] : codes) if (glyph_id == id && !composed_.contains(code)) {
             g.code = code; composed_[code] = alpha; glyphs_.push_back(g);
@@ -145,7 +131,7 @@ bool FfntFont::LoadUnicodeFont(std::string_view family, std::string_view charact
     std::sort(glyphs_.begin(),glyphs_.end(),[](auto& a,auto& b){return a.code<b.code;});
     unicode_ = std::move(state); return true;
 }
-std::vector<ShapedGlyph> FfntFont::ShapeLine(std::span<const uint32_t> codes, float inline_advance) const {
+std::vector<ShapedGlyph> FfntFont::ShapeLine(std::span<const uint32_t> codes, float inline_advance, std::span<const float> code_advances) const {
     std::vector<ShapedGlyph> out;
     if (!unicode_ || codes.empty()) return out;
     std::wstring text; for (auto c:codes) text.push_back(wchar_t(c));
@@ -168,10 +154,10 @@ std::vector<ShapedGlyph> FfntFont::ShapeLine(std::span<const uint32_t> codes, fl
         if (SUCCEEDED(hr)) hr = ScriptPlace(unicode_->dc,&unicode_->cache,glyphs.data(),glyph_count,attrs.data(),&item.a,advances.data(),offsets.data(),&abc);
         if (FAILED(hr)) return {};
         for(int g=0;g<glyph_count;++g) {
-            bool picture=false;
-            for(int c=0;c<n;++c) if (clusters[c]==g && text[item.iCharPos+c]==0xE000) picture=true;
-            const float advance = picture ? inline_advance : float(advances[g]);
-            out.push_back({picture ? nullptr : Find(0x100000 + glyphs[g]), pen, float(offsets[g].du), float(-offsets[g].dv), advance});
+            bool picture=false; int picture_code=-1;
+            for(int c=0;c<n;++c) if (clusters[c]==g && text[item.iCharPos+c]==0xE000) { picture=true; picture_code=item.iCharPos+c; }
+            const float advance = picture ? (size_t(picture_code) < code_advances.size() ? code_advances[size_t(picture_code)] : inline_advance) : float(advances[g]);
+            out.push_back({picture ? nullptr : Find(0x100000 + glyphs[g]), pen, float(offsets[g].du), float(-offsets[g].dv), advance, picture_code});
             pen += advance;
         }
     }

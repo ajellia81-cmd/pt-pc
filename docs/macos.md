@@ -19,10 +19,12 @@ what has been tried on a Mac is in the credits below.
    go to System Settings > Privacy & Security, scroll to Security, choose **Open Anyway**, then confirm **Open**. Do this
    only for a copy you downloaded from the project's Releases page and trust. See [Apple's instructions for opening an app
    that hasn't been notarised](https://support.apple.com/en-gb/102445).
-3. On the first start a folder dialog asks for your extracted CUSA01127 folder (the one with `chunk1.psarc` and
-   `texture.qar`). The choice is remembered. A `CUSA01127` or `game/CUSA01127` folder next to the app is found without
-   asking, and `pt --game <folder>` (`P.T. PC Port.app/Contents/MacOS/pt`) still works. A fake PKG cannot be used on
-   macOS: the extraction helper of the installers is not built for it, so extract the PKG on Windows or Linux first.
+3. On the first start without game files the game asks for them (docs/installer.md, First start without game files):
+   **Choose PKG file** extracts your P.T. fake PKG with the same helper the Windows and Linux setups use (in the app as
+   `Contents/MacOS/extractor/PT.PkgExtract`) into `~/Library/Application Support/pt-port/pt/CUSA01127`, with a progress
+   window; **Choose game folder** takes an extracted CUSA01127 folder (or the folder containing it). The choice is
+   remembered. A `CUSA01127` or `game/CUSA01127` folder next to the app is found without asking, and `pt --game <folder>`
+   (`P.T. PC Port.app/Contents/MacOS/pt`) still works.
 4. macOS asks once for the microphone, for the part of the game that listens for the word. `[voice] key = J` in `pt.ini`
    works here too.
 
@@ -44,7 +46,7 @@ macOS takes the POSIX side of `src/engine/platform` (docs/linux.md), with these 
 | shadow maps | compared in the shader from a `textureGather` (`PT_SHADOW_GATHER`, shaders/lighting.glsl) instead of a comparison sampler: with one on the bindless `images[]` array SPIRV-Cross declares the whole array `depth2d`, and Metal reads the G-buffer's normal and material through it as one channel, which lit the hallway ceiling in blotches |
 | enhanced textures | the `realesrgan-ncnn-vulkan` macOS release (a universal binary, x86_64 and arm64, MoltenVK linked in; checked here by its Mach-O header), by SHA-256 |
 | missing GPU features | the device is checked for the features the renderer needs (`vk_context.cpp`) and the log names the one that is missing |
-| folder picker when no game is found | SDL's folder dialog (`NSOpenPanel`) |
+| first-run screen when no game is found | `NSAlert` and `NSOpenPanel` through SDL; the app is brought to the front first (`SDL_HINT_MAC_BACKGROUND_APP` 0), since SDL 3.4 leaves an app with no window in the background on macOS 14 and later; the PKG helper is a single-file .NET executable for the Mac's CPU, signed with the app |
 | crash dump | none |
 
 Off on macOS, as on Linux: FSR 3, DLSS, XeSS (Windows SDKs) and the VR mode. MoltenVK has no ray queries, so the

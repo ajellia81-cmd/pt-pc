@@ -51,9 +51,24 @@ jobs:
           cmake -G Ninja -B build/macos -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_OSX_ARCHITECTURES=${{ matrix.cmake_arch }}
           cmake --build build/macos --target pt pt_release
 
+      # the setups' PKG extraction helper (installer/Extractor on the LGPL LibOrbisPkg, unchanged upstream since 2020), for the
+      # game's first-run screen: one signed executable per architecture (tools/ci/publish_extractor.py)
+      - uses: actions/checkout@v7
+        with:
+          repository: maxton/LibOrbisPkg
+          ref: 643477263b2644e0803e0f58b8726ea4e3f3b7d4
+          path: liborbis
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Extractor
+        run: python3 tools/ci/publish_extractor.py --liborbis liborbis --rid osx-${{ matrix.arch }} --single-file --out build/extractor
+
       - name: App
         run: |
-          python3 tools/macos/make_app.py --build build/macos --exe build/macos/pt_release
+          python3 tools/macos/make_app.py --build build/macos --exe build/macos/pt_release --extractor build/extractor
           mv dist/pt-port-*-macos-${{ matrix.arch }}.zip dist/P.T.PC.Port-macOS-${{ matrix.arch }}.zip
           lipo -archs "dist/P.T. PC Port.app/Contents/MacOS/pt"
 

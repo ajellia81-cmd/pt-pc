@@ -1,11 +1,10 @@
+#include "engine/core/ascii.h"
 #include "engine/audio/subtitles.h"
 
 #include <cctype>
 #include <algorithm>
-#include <cmath>
 #include <cstring>
 #include <format>
-#include <iterator>
 
 #include "engine/audio/sound_package.h"
 #include "engine/core/log.h"
@@ -22,7 +21,7 @@ std::string NormalizeLanguage(std::string_view language) {
         lang.resize(lang.size() - 4);
     }
     for (size_t i = 0; i < lang.size(); ++i) {
-        lang[i] = static_cast<char>(i == 0 ? std::toupper(static_cast<unsigned char>(lang[i])) : std::tolower(static_cast<unsigned char>(lang[i])));
+        lang[i] = static_cast<char>(i == 0 ? pt::AsciiUpper(lang[i]) : pt::AsciiLower(lang[i]));
     }
     return lang;
 }
@@ -52,7 +51,7 @@ std::string SubtitleTable::PackagePath(std::string_view language) {
 uint32_t SubtitleTable::SubtitleKey(std::string_view subtitle_id) {
     std::string lower(subtitle_id);
     for (char& c : lower) {
-        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        c = static_cast<char>(pt::AsciiLower(c));
     }
     return static_cast<uint32_t>(StrCode64(lower) & 0xFFFFFFFFull);
 }
@@ -63,8 +62,7 @@ uint64_t SubtitleTable::MarkerKey(std::string_view label) {
 
 bool SubtitleTable::Load(Vfs& vfs, std::string_view language, std::span<const std::vector<uint8_t>> sab_tables, std::string* error) {
     const std::string lang = NormalizeLanguage(language);
-    std::string source = (lang == "Tur" || lang == "Zhs" || lang == "Ara" || lang == "Rus" || lang == "Ukr" || lang == "Ces" || lang == "Pol" || lang == "Kor") ? "Eng" : lang;
-    // Added languages use the English timing/category table, with their own text substituted below.
+    std::string source = (lang == "Tur" || lang == "Zhs" || lang == "Ara" || lang == "Rus" || lang == "Ukr" || lang == "Ces" || lang == "Pol") ? "Eng" : lang;
     if (source != "Eng" && !vfs.Archive().Contains(Vfs::ToArchivePath(PackagePath(source)))) {
         LogWarn("subtitles: {} missing, falling back to English", PackagePath(source));
         source = "Eng";
@@ -85,41 +83,16 @@ bool SubtitleTable::Load(Vfs& vfs, std::string_view language, std::span<const st
     if (!Parse(*subp, sab_tables, error)) {
         return false;
     }
-    const int translation_language = lang == "Tur" ? 7 : lang == "Zhs" ? 8 : lang == "Ara" ? 9 : lang == "Rus" ? 10 : lang == "Ukr" ? 11 : lang == "Ces" ? 12 : lang == "Pol" ? 13 : lang == "Kor" ? 14 : 0;
+    const int translation_language = lang == "Tur" ? 7 : lang == "Zhs" ? 8 : lang == "Ara" ? 9 : lang == "Rus" ? 10 : lang == "Ukr" ? 11 : lang == "Ces" ? 12 : lang == "Pol" ? 13 : 0;
     if (translation_language) {
         for (SubtitleEntry& entry : entries_) {
             bool found = false;
             auto translate = [&](const auto& table) {
-                for (const auto& t : table) if (t.key == entry.key && t.lines.size() != 0) {
-                    // Japanese and English packages occasionally divide one spoken thought at different points.
-                    // Keep the original English time span, but give every translated sentence a timed slot.  A
-                    // one-to-one index mapping silently loses text whenever the source and translation use a
-                    // different number of sentences (the radio news is 18 English slots and 19 Korean ones).
-                    const std::vector<SubtitleLine> source_lines = entry.lines;
-                    entry.lines.resize(t.lines.size());
-                    auto time_at = [&](float position) {
-                        const size_t lower = std::min(static_cast<size_t>(position), source_lines.size() - 1);
-                        const size_t upper = std::min(lower + 1, source_lines.size() - 1);
-                        const float fraction = position - static_cast<float>(lower);
-                        const float a = source_lines[lower].start_seconds;
-                        const float b = upper == lower ? source_lines[lower].end_seconds : source_lines[upper].start_seconds;
-                        return std::lerp(a, b, fraction);
-                    };
-                    size_t i = 0;
-                    for (std::string_view translated : t.lines) {
-                        auto& line = entry.lines[i];
-                        line.start_seconds = time_at(static_cast<float>(i) * source_lines.size() / t.lines.size());
-                        line.end_seconds = i + 1 == t.lines.size() ? source_lines.back().end_seconds
-                            : time_at(static_cast<float>(i + 1) * source_lines.size() / t.lines.size());
-                        line.text = translated;
-                        std::replace(line.text.begin(), line.text.end(), '|', '\n');
-                        ++i;
-                    }
-                    found = true;
-                    break;
+                for (const auto& t : table) if (t.key == entry.key && t.lines.size() == entry.lines.size()) {
+                    size_t i=0; for (auto text : t.lines) { auto& line=entry.lines[i++].text; line=text; std::replace(line.begin(),line.end(),'|','\n'); } found = true; break;
                 }
             };
-            switch(translation_language) {case 7:translate(turkish::kSubtitles);break;case 8:translate(chinese::kSubtitles);break;case 9:translate(arabic::kSubtitles);break;case 10:translate(russian::kSubtitles);break;case 11:translate(ukrainian::kSubtitles);break;case 12:translate(czech::kSubtitles);break;case 13:translate(polish::kSubtitles);break;case 14:translate(korean::kSubtitles);break;}
+            switch(translation_language) {case 7:translate(turkish::kSubtitles);break;case 8:translate(chinese::kSubtitles);break;case 9:translate(arabic::kSubtitles);break;case 10:translate(russian::kSubtitles);break;case 11:translate(ukrainian::kSubtitles);break;case 12:translate(czech::kSubtitles);break;case 13:translate(polish::kSubtitles);break;}
             if (!found) { if (error) *error = std::format("{} subtitle {:08x} missing or line count differs", lang, entry.key); return false; }
         }
     }
@@ -192,8 +165,6 @@ bool SubtitleTable::Parse(std::span<const uint8_t> data, std::span<const std::ve
                 while (!cleaned.empty() && (cleaned.front() == '\n' || cleaned.front() == ' ')) {
                     cleaned.erase(cleaned.begin());
                 }
-                // a trailing space stays: the original lays it out (42 pieces end in one, e.g. "in a loud voice. $"; their lines sit
-                // half a space further left, radio_subtitles_rb frame 3220)
                 while (!cleaned.empty() && cleaned.back() == '\n') {
                     cleaned.pop_back();
                 }
