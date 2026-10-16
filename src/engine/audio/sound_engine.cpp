@@ -30,9 +30,13 @@ constexpr uint64_t kEbootFrame = 1024;
 // The rear centre is the -pi/+pi seam of Wwise's discrete panner.  A locator that
 // is visually centred can land on either side of that seam by a tiny transform
 // rounding error, making a centred rear cue favour one surround speaker.  Keep a
-// deliberately narrow centre lane; meaningful rear-left/right placement remains
-// untouched.
-constexpr float kRearCentreHalfAngle = 4.0f * 3.14159265358979323846f / 180.0f;
+// deliberately bounded centre lane.  The game reports a number of fixed rear
+// locators a little off the listener's centre line (camera/locator origins do
+// not coincide), which was still enough for a clearly rear-centre cue to favour
+// one speaker with the previous 4 degree lane.  Fifteen degrees absorbs that
+// authoring offset while leaving intentionally rear-left/right cues outside the
+// lane untouched.
+constexpr float kRearCentreHalfAngle = 15.0f * 3.14159265358979323846f / 180.0f;
 
 uint64_t MsToSamples(double ms) {
     return ms <= 0.0 ? 0 : static_cast<uint64_t>(std::llround(ms * kSamplesPerMs));
