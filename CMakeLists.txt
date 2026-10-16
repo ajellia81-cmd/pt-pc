@@ -347,6 +347,12 @@ endif()
 add_executable(pt_graphics_preset_test tests/graphics_preset_test.cpp)
 target_link_libraries(pt_graphics_preset_test PRIVATE pt_engine)
 
+add_executable(pt_korean_text_layout_test tests/korean_text_layout_test.cpp)
+target_link_libraries(pt_korean_text_layout_test PRIVATE pt_engine)
+if(MSVC)
+  target_compile_options(pt_korean_text_layout_test PRIVATE /utf-8)
+endif()
+
 # the full screen blur's pulse start per game frame (0x9231D0), src/game/blur_sway.h
 add_executable(pt_blur_sway_test tests/blur_sway_test.cpp)
 target_link_libraries(pt_blur_sway_test PRIVATE pt_engine)
