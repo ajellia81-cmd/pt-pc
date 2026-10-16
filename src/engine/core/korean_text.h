@@ -422,6 +422,7 @@ inline constexpr Text kMenu[] = {
     {"pc_hdr","HDR"}, {"pc_note_hdr_restart","즉시 적용됩니다. Windows에서 이 디스플레이의 HDR을 켜야 하며, 그렇지 않으면 SDR을 사용합니다."},
     {"pc_note_hdr_windows_off","Windows에서 이 디스플레이의 HDR이 꺼져 있습니다. 설정 > 디스플레이 > HDR 사용에서 켜면 여기에서 선택할 수 있습니다."},
     {"pc_surround","서라운드 출력"}, {"pc_note_surround","게임을 다시 시작하면 출력 장치의 5.1 또는 7.1 채널 구성을 사용합니다. 스테레오 장치는 스테레오로 유지됩니다."},
+    {"pc_surround_spatial","Windows 공간 음향"}, {"pc_note_surround_spatial","게임을 다시 시작하면 Windows Sonic, Dolby Atmos 또는 DTS:X를 통해 7.1 믹스를 출력합니다. Windows 사운드 설정에서 공간 음향을 켜세요. 사용할 수 없으면 5.1/7.1 또는 스테레오로 출력됩니다."},
     {"pc_dolby_atmos","홈 시어터용 Dolby Atmos"}, {"pc_note_dolby_atmos","게임을 다시 시작하면 Windows 공간 음향으로 출력합니다. Dolby Atmos를 사용할 수 없으면 일반 오디오 출력이 사용됩니다."},
     {"pc_rumble_profile","진동 모드"}, {"pc_rumble_original","원본"}, {"pc_rumble_enhanced","향상됨"},
     {"pc_note_rumble_profile","원본은 게임의 기본 모터 진동을 유지합니다. 향상됨은 지원되는 트리거 진동을 추가하고, Windows에서 지원되는 USB DualSense 컨트롤러에서는 리사의 울음소리에서 만든 필터링된 햅틱을 추가합니다. 마스터 진동 설정은 둘 다 끄며, 컨트롤러 스피커 오디오는 별도로 작동합니다."},

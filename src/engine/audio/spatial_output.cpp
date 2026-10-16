@@ -12,7 +12,9 @@
 
 #include <array>
 #include <atomic>
+#include <cstring>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 #pragma comment(lib, "ole32.lib")
@@ -39,7 +41,33 @@ struct SpatialOutput::Impl {
     std::atomic<bool> running{false};
     bool com_initialized = false;
     RenderFunction render;
+    SpatialRenderFunction spatial_render;
     std::vector<float> mix;
+    struct DynamicSlot {
+        ComPtr<ISpatialAudioObject> object;
+        float* buffer = nullptr;
+        UINT32 samples = 0;
+    };
+    std::vector<DynamicSlot> dynamic;
+    std::unordered_map<uint32_t, size_t> dynamic_voices;
+
+    bool Submit(uint32_t voice_id, uint32_t offset, std::span<const float> mono, const glm::vec3& position) {
+        if (dynamic.empty() || offset >= mix.size() / kBed.size()) return false;
+        size_t slot = 0;
+        if (const auto it = dynamic_voices.find(voice_id); it != dynamic_voices.end()) {
+            slot = it->second;
+        } else {
+            if (dynamic_voices.size() >= dynamic.size()) return false;
+            slot = dynamic_voices.size();
+            dynamic_voices.emplace(voice_id, slot);
+        }
+        DynamicSlot& target = dynamic[slot];
+        if (!target.object || !target.buffer || offset >= target.samples) return false;
+        target.object->SetPosition(position.x, position.y, position.z);
+        const UINT32 count = std::min<UINT32>(static_cast<UINT32>(mono.size()), target.samples - offset);
+        std::memcpy(target.buffer + offset, mono.data(), static_cast<size_t>(count) * sizeof(float));
+        return count == mono.size();
+    }
 
     void Run() {
         CoInitializeEx(nullptr, COINIT_MULTITHREADED);
@@ -49,7 +77,20 @@ struct SpatialOutput::Impl {
             if (FAILED(stream->BeginUpdatingAudioObjects(&available, &frames))) continue;
             if (frames > 0) {
                 mix.assign(static_cast<size_t>(frames) * kBed.size(), 0.0f);
-                render(mix.data(), frames, static_cast<uint32_t>(kBed.size()));
+                dynamic_voices.clear();
+                for (auto& object : dynamic) {
+                    object.buffer = nullptr;
+                    object.samples = 0;
+                    BYTE* buffer = nullptr;
+                    UINT32 bytes = 0;
+                    if (SUCCEEDED(object.object->GetBuffer(&buffer, &bytes)) && buffer) {
+                        object.buffer = reinterpret_cast<float*>(buffer);
+                        object.samples = std::min<UINT32>(frames, bytes / sizeof(float));
+                        std::fill(object.buffer, object.buffer + object.samples, 0.0f);
+                    }
+                }
+                if (spatial_render) spatial_render(mix.data(), frames, static_cast<uint32_t>(kBed.size()), owner);
+                else render(mix.data(), frames, static_cast<uint32_t>(kBed.size()));
                 for (size_t c = 0; c < kBed.size(); ++c) {
                     if (!objects[c]) continue;
                     BYTE* buffer = nullptr;
@@ -64,6 +105,7 @@ struct SpatialOutput::Impl {
         }
         CoUninitialize();
     }
+    SpatialOutput* owner = nullptr;
 };
 
 SpatialOutput::SpatialOutput() : impl_(std::make_unique<Impl>()) {}
@@ -72,7 +114,7 @@ SpatialOutput::~SpatialOutput() {
     Close();
 }
 
-bool SpatialOutput::Open(uint32_t sample_rate, RenderFunction render) {
+bool SpatialOutput::Open(uint32_t sample_rate, RenderFunction render, SpatialRenderFunction spatial_render) {
     Close();
     Impl& s = *impl_;
     const HRESULT initialized = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
@@ -124,8 +166,19 @@ bool SpatialOutput::Open(uint32_t sample_rate, RenderFunction render) {
     SpatialAudioObjectRenderStreamActivationParams params{};
     params.ObjectFormat = &format;
     params.StaticObjectTypeMask = mask;
+    UINT32 max_dynamic = 0;
+    if (spatial_render && SUCCEEDED(s.client->GetMaxDynamicObjectCount(&max_dynamic))) {
+        max_dynamic = std::min<UINT32>(max_dynamic, 32);
+    } else {
+        max_dynamic = 0;
+    }
+    if (spatial_render && max_dynamic == 0) {
+        LogInfo("audio: spatial sound: this endpoint has no dynamic objects; using the selected normal output");
+        Close();
+        return false;
+    }
     params.MinDynamicObjectCount = 0;
-    params.MaxDynamicObjectCount = 0;
+    params.MaxDynamicObjectCount = max_dynamic;
     params.Category = AudioCategory_GameEffects;
     params.EventHandle = s.event;
     PROPVARIANT activation;
@@ -144,15 +197,28 @@ bool SpatialOutput::Open(uint32_t sample_rate, RenderFunction render) {
         if (!(mask & kBed[c])) continue;
         if (SUCCEEDED(s.stream->ActivateSpatialAudioObject(kBed[c], &s.objects[c]))) ++active;
     }
+    for (UINT32 i = 0; i < max_dynamic; ++i) {
+        Impl::DynamicSlot slot;
+        if (FAILED(s.stream->ActivateSpatialAudioObject(AudioObjectType_Dynamic, &slot.object))) break;
+        s.dynamic.push_back(std::move(slot));
+    }
+    if (spatial_render && s.dynamic.empty()) {
+        LogInfo("audio: spatial sound: dynamic objects could not be activated; using the selected normal output");
+        Close();
+        return false;
+    }
     if (active != static_cast<int>(kBed.size()) || FAILED(s.stream->Start())) {
         LogWarn("audio: spatial sound: the full 7.1 bed could not start, using ordinary playback");
         Close();
         return false;
     }
     s.render = std::move(render);
+    s.spatial_render = std::move(spatial_render);
+    s.owner = this;
     s.running = true;
     s.thread = std::thread([&s] { s.Run(); });
-    LogInfo("audio: playback through Windows spatial sound at {} Hz, a bed of {} static objects", sample_rate, active);
+    LogInfo("audio: playback through Windows spatial sound at {} Hz, a bed of {} static objects and {} dynamic objects", sample_rate,
+            active, s.dynamic.size());
     return true;
 }
 
@@ -164,6 +230,8 @@ void SpatialOutput::Close() {
     }
     if (s.stream) s.stream->Stop();
     for (auto& o : s.objects) o.Reset();
+    s.dynamic.clear();
+    s.dynamic_voices.clear();
     s.stream.Reset();
     s.client.Reset();
     if (s.event) CloseHandle(s.event);
@@ -172,6 +240,10 @@ void SpatialOutput::Close() {
         CoUninitialize();
         s.com_initialized = false;
     }
+}
+
+bool SpatialOutput::SubmitMono(uint32_t voice_id, uint32_t frame_offset, std::span<const float> mono, const glm::vec3& position) {
+    return impl_->Submit(voice_id, frame_offset, mono, position);
 }
 
 }
@@ -183,10 +255,11 @@ namespace pt::audio {
 struct SpatialOutput::Impl {};
 SpatialOutput::SpatialOutput() : impl_(std::make_unique<Impl>()) {}
 SpatialOutput::~SpatialOutput() = default;
-bool SpatialOutput::Open(uint32_t, RenderFunction) {
+bool SpatialOutput::Open(uint32_t, RenderFunction, SpatialRenderFunction) {
     return false;
 }
 void SpatialOutput::Close() {}
+bool SpatialOutput::SubmitMono(uint32_t, uint32_t, std::span<const float>, const glm::vec3&) { return false; }
 
 }
 

@@ -122,6 +122,7 @@ bool LoadAppSettings(const std::filesystem::path& path, AppSettings& out) {
     Read(v, "audio.volume", out.audio.volume);
     Read(v, "audio.surround", out.audio.surround);
     Read(v, "audio.spatial", out.audio.spatial);
+    Read(v, "audio.dolby_atmos", out.audio.dolby_atmos);
     Read(v, "audio.controller_speaker", out.audio.controller_speaker);
     Read(v, "audio.controller_speaker_volume", out.audio.controller_speaker_volume);
     Read(v, "voice.device", out.voice.device);
@@ -331,6 +332,8 @@ bool SaveAppSettings(const std::filesystem::path& path, const AppSettings& s) {
          << "surround = " << (s.audio.surround ? 1 : 0) << "\n"
          << "; 1: the 7.1 mix through Windows spatial sound (Windows Sonic, Dolby Atmos, DTS:X) when Windows has one on for the device\n"
          << "spatial = " << (s.audio.spatial ? 1 : 0) << "\n\n"
+         << "; 1: use Windows Spatial Sound dynamic audio objects for Dolby Atmos for Home Theater; falls back to the selected normal output when unavailable\n"
+         << "dolby_atmos = " << (s.audio.dolby_atmos ? 1 : 0) << "\n\n"
          << "controller_speaker = " << (s.audio.controller_speaker ? 1 : 0) << "\n"
          << "; separate controller-speaker level, 0 to 1; does not change game volume or DualSense haptics\n"
          << "controller_speaker_volume = " << s.audio.controller_speaker_volume << "\n\n"

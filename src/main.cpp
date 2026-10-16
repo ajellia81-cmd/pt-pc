@@ -2749,6 +2749,7 @@ public:
             if (s.audio.spatial) surround.note = "pc_note_surround_spatial";
             sound.rows.push_back(std::move(surround));
         }
+        sound.rows.push_back(Row(kDolbyAtmos, "pc_dolby_atmos", OffOn(), s.audio.dolby_atmos ? 1 : 0, "pc_note_dolby_atmos"));
         sound.rows.push_back(Row(kControllerSpeaker, "pc_controller_speaker", OffOn(), s.audio.controller_speaker ? 1 : 0,
                                  "pc_note_controller_speaker"));
         pt::game::PcSettingRow controller_speaker_volume = Row(
@@ -3072,6 +3073,10 @@ public:
             if ((s.audio.spatial ? 2 : s.audio.surround ? 1 : 0) != value) game_.ShowNoticeDialog("pc_restart_needed");
             s.audio.surround = value >= 1;
             s.audio.spatial = value == 2;
+            break;
+        case kDolbyAtmos:
+            if (s.audio.dolby_atmos != (value == 1)) game_.ShowNoticeDialog("pc_restart_needed");
+            s.audio.dolby_atmos = value == 1;
             break;
         case kControllerSpeaker:
             s.audio.controller_speaker = value == 1;
@@ -3661,7 +3666,7 @@ private:
     enum RowId {
         kDisplayMode,
         kResolution,
-        kVsync, kFpsLimit, kHdr, kHdrPaperWhite, kHdrPeak, kSurround, kControllerSpeaker, kControllerSpeakerVolume, kRumbleProfile, kPromptStyle,
+        kVsync, kFpsLimit, kHdr, kHdrPaperWhite, kHdrPeak, kSurround, kDolbyAtmos, kControllerSpeaker, kControllerSpeakerVolume, kRumbleProfile, kPromptStyle,
         kFocusPause,
         kFocusMute,
         kUpscaler,
@@ -4662,10 +4667,12 @@ int RunGame(App& app, pt::Vfs& vfs) {
     pt::game::GameSound sound(game);
     std::vector<float> captured;
     pt::audio::AudioOutput::SetPreferSpatial(app.settings.audio.spatial);
+    pt::audio::AudioOutput::SetPreferObjectSpatial(app.settings.audio.dolby_atmos);
     const bool audio_device_now = app.window && pt::devices::WaitAudio(0.25);
     bool audio_device_pending = app.window && !audio_device_now;
     if (audio_device_pending) pt::LogWarn("audio: the audio devices are still starting; the sound opens its device when they are ready");
-    if ((app.window || options.audio_offline) && sound.Init(audio_device_now, "Eng", app.settings.audio.surround || app.settings.audio.spatial)) {
+    if ((app.window || options.audio_offline) && sound.Init(audio_device_now, "Eng", app.settings.audio.surround || app.settings.audio.spatial,
+                                                            app.settings.audio.dolby_atmos)) {
         sound.System().SetMasterVolume(app.settings.audio.volume);
         if (options.seed) {
             sound.System().SetRandomSeed(options.seed);
@@ -5223,7 +5230,8 @@ int RunGame(App& app, pt::Vfs& vfs) {
         bool visible = PumpEvents(app, &input, running, &voice_key_press, static_cast<uint32_t>(voice_key)) || vr != nullptr;
         if (audio_device_pending && !pt::devices::AudioStarting()) {
             audio_device_pending = false;
-            const bool opened = sound.System().OpenDevice(app.settings.audio.surround || app.settings.audio.spatial);
+            const bool opened = sound.System().OpenDevice(app.settings.audio.surround || app.settings.audio.spatial,
+                                                           app.settings.audio.dolby_atmos);
             pt::LogInfo("audio: the audio devices are ready at frame {}; playback device {}", frame, opened ? "open" : "not available");
         }
         if (vr) {
