@@ -5271,7 +5271,8 @@ int RunGame(App& app, pt::Vfs& vfs) {
                 pt::LogInfo("boot: shader preparation screen shown for {:.1f} s{}", on_screen, pipelines_warm ? "" : " (pipelines still being made)");
             } else {
                 ui.SetShaderScreen(std::format("pc_boot_preparing_shaders{}{}", pt::game::kPcNoteArgument,
-                                               100u * pipeline_warmup.Finished() / std::max(1u, pipeline_warmup.Total())));
+                                               100u * pipeline_warmup.Finished() / std::max(1u, pipeline_warmup.Total())),
+                                   game.Options().subtitle_language);
             }
         }
         if (texture_screen && !shader_screen) {

@@ -2,6 +2,7 @@
 
 #include <volk.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <deque>
 #include <memory>
@@ -60,7 +61,10 @@ public:
     void Update(Game& game, const InputState& input, float dt);
     void ShowBootSplash(uint32_t texture, float seconds);
     bool BootSplashShown() const { return boot_splash_ != 0 && boot_splash_time_ > 0.0f; }
-    void SetShaderScreen(std::string note) { shader_screen_ = std::move(note); }
+    void SetShaderScreen(std::string note, int language = -1) {
+        shader_screen_ = std::move(note);
+        if (language >= 0) language_ = std::clamp(language, 0, UiAssets::kLanguageCount - 1);
+    }
     bool ShaderScreenShown() const { return !shader_screen_.empty(); }
     void SetTexturesScreen(std::string note, float progress, bool asking) {
         textures_screen_ = std::move(note);

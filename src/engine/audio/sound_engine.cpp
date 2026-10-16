@@ -27,17 +27,6 @@ constexpr int kMaxPlayDepth = 32;
 constexpr uint16_t kRumbleDevice = 406;
 constexpr float kCenterGain = 0.70710678f;
 constexpr uint64_t kEbootFrame = 1024;
-// The rear centre is the -pi/+pi seam of Wwise's discrete panner.  A locator that
-// is visually centred can land on either side of that seam by a tiny transform
-// rounding error, making a centred rear cue favour one surround speaker.  Keep a
-// deliberately bounded centre lane.  The game reports a number of fixed rear
-// locators a little off the listener's centre line (camera/locator origins do
-// not coincide), which was still enough for a clearly rear-centre cue to favour
-// one speaker with the previous 4 degree lane.  Twenty degrees absorbs that
-// authoring offset while leaving intentionally rear-left/right cues outside the
-// lane untouched.
-constexpr float kRearCentreHalfAngle = 20.0f * 3.14159265358979323846f / 180.0f;
-
 uint64_t MsToSamples(double ms) {
     return ms <= 0.0 ? 0 : static_cast<uint64_t>(std::llround(ms * kSamplesPerMs));
 }
@@ -118,9 +107,6 @@ void AddSpeakerPower(float center, int index, float* power) {
 }
 
 void SpeakerGains(float azimuth, float center, float spread, uint32_t channels, float (*gains)[kSpeakers]) {
-    if (std::fabs(std::fabs(azimuth) - 3.14159265358979323846f) <= kRearCentreHalfAngle) {
-        azimuth = std::copysign(3.14159265358979323846f, azimuth);
-    }
     channels = std::clamp<uint32_t>(channels, 1, 7);
     const float width = spread * 2.56f / static_cast<float>(channels);
     const int points = static_cast<int>(width * kSpreadDensity + 1.0f) + 1;
@@ -2760,14 +2746,6 @@ void SoundEngine::UpdateVoiceParams(Voice& v) {
                 for (int s = 0; s < kSpeakers; ++s) {
                     v.sc_matrix[0][s] = gains[kFl][s];
                 }
-                if (std::getenv("PT_TRACE_SPATIAL") != nullptr && now_ >= v.panner_trace_next) {
-                    LogInfo("audio: panner voice {} node {} object {} rel ({:.2f}, {:.2f}, {:.2f}) azimuth {:.1f} deg "
-                            "gains FL {:.3f} FR {:.3f} FC {:.3f} BL {:.3f} BR {:.3f} SL {:.3f} SR {:.3f}",
-                            v.serial, v.node->id, v.object, rel.x, rel.y, rel.z, glm::degrees(azimuth), gains[kFl][kFl],
-                            gains[kFl][kFr], gains[kFl][kFc], gains[kFl][kBl], gains[kFl][kBr], gains[kFl][kSl],
-                            gains[kFl][kSr]);
-                    v.panner_trace_next = now_ + static_cast<uint64_t>(kOutputRate / 2);
-                }
             } else {
                 uint32_t mask = v.media->Info().channel_mask;
                 if (std::popcount(mask) != static_cast<int>(v.media->Channels())) {
@@ -3240,14 +3218,8 @@ uint32_t SoundEngine::RenderVoice(Voice& v, uint32_t offset, uint32_t frames) {
             const ObjectState& state = object == objects_.end() ? kEmptyObject : object->second;
             const glm::vec3 relative = EmitterPosition(v, state) - listener_position_;
             // The game's listener basis points forward, while Windows Spatial Sound's listener-space Z points back.
-            glm::vec3 position(glm::dot(relative, listener_right_), glm::dot(relative, listener_up_),
-                               -glm::dot(relative, listener_forward_));
-            // Apply the same narrow rear-centre lane as the conventional 5.1/7.1
-            // panner.  Otherwise a nearly-zero x coordinate is enough for the
-            // Windows object renderer to choose a rear-left or rear-right image.
-            if (position.z > 0.0f && std::fabs(position.x) <= position.z * std::tan(kRearCentreHalfAngle)) {
-                position.x = 0.0f;
-            }
+            const glm::vec3 position(glm::dot(relative, listener_right_), glm::dot(relative, listener_up_),
+                                     -glm::dot(relative, listener_forward_));
             for (uint32_t i = 0; i < produced; ++i) {
                 const float w = (static_cast<float>(i) + 1.0f) / static_cast<float>(produced);
                 const float fade = fade0 + (fade1 - fade0) * w;
@@ -3263,18 +3235,18 @@ uint32_t SoundEngine::RenderVoice(Voice& v, uint32_t offset, uint32_t frames) {
                 spatial_mono_[i] = std::clamp(mono * gain * master_gain_, -1.0f, 1.0f);
             }
             routed_to_spatial = spatial_sink_->SubmitMono(v.serial, spatial_render_offset_ + offset, spatial_mono_, position);
-            if (trace_spatial && now_ >= v.spatial_trace_next) {
+            if (trace_spatial && !v.spatial_trace_logged) {
                 LogInfo("audio: spatial voice {} node {} object {} channels {} -> {} at ({:.2f}, {:.2f}, {:.2f})", v.serial,
                         v.node->id, v.object, v.channels, routed_to_spatial ? "dynamic" : "bed (no dynamic slot)", position.x,
                         position.y, position.z);
-                v.spatial_trace_next = now_ + static_cast<uint64_t>(kOutputRate / 2);
+                v.spatial_trace_logged = true;
             }
         }
     }
-    if (trace_spatial && positional_voice && !routed_to_spatial && now_ >= v.spatial_trace_next) {
+    if (trace_spatial && positional_voice && !v.spatial_trace_logged) {
         LogInfo("audio: spatial voice {} node {} object {} stays in bed (sink {}, spatialized {}, channels {})", v.serial, v.node->id,
                 v.object, spatial_sink_ ? "on" : "off", v.node->positioning->spatialized ? "yes" : "no", v.channels);
-        v.spatial_trace_next = now_ + static_cast<uint64_t>(kOutputRate / 2);
+        v.spatial_trace_logged = true;
     }
     const float inv = 1.0f / static_cast<float>(produced);
     const float block_inv = 1.0f / static_cast<float>(frames);
