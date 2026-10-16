@@ -340,12 +340,10 @@ void GameUi::Update(Game& game, const InputState& input, float dt) {
     if (language_ != subtitles_.Language()) {
         subtitles_.SetLanguage(language_);
     }
-    // The Korean movie face is dynamically rasterized into a full glyph atlas.  Construct it
-    // while the UI is updating (normally during loading or while the subtitle option is changed)
-    // instead of synchronously in DrawSubtitle when the first spoken line arrives.
-    if (language_ == 14) {
-        assets_.Font(UiFontType::Movie, language_);
-    }
+    // Non-English movie faces are created lazily.  Prepare the selected subtitle face while
+    // the UI is updating (normally during loading or when its option is changed), rather than
+    // synchronously in DrawSubtitle when the first spoken line arrives.
+    assets_.Font(UiFontType::Movie, language_);
     for (const Game::SubtitleRequest& request : game.TakeSubtitleRequests()) {
         subtitles_.Play(request.subtitle_id, request.offset_seconds, std::nullopt, request.sound);
     }
