@@ -65,12 +65,15 @@ jobs:
           build\release\pt_settings_roundtrip_test.exe build\release\test-output
           build\release\pt_korean_text_layout_test.exe
 
-      - name: Verify Coffee with Lisa runtime files
+      - name: Verify packaged runtime files
         shell: cmd
         run: |
           if not exist build\release\lisa_date\script.txt exit /b 1
           if not exist build\release\lisa_date\text\eng.txt exit /b 1
           if not exist build\release\lisa_date\music.ogg exit /b 1
+          if not exist build\release\texture-tools\realesrgan-ncnn-vulkan.exe exit /b 1
+          if not exist build\release\D3D12\D3D12Core.dll exit /b 1
+          if not exist build\release\pt-updater.exe exit /b 1
 
       - name: Upload executable and runtime files
         if: success()
@@ -80,12 +83,16 @@ jobs:
           if-no-files-found: error
           path: |
             build/release/pt.exe
+            build/release/pt-updater.exe
             build/release/*.dll
+            build/release/D3D12/**
             build/release/shaders/**
             build/release/voice/**
             build/release/fonts/**
             build/release/licenses/**
             build/release/lisa_date/**
+            build/release/texture-tools/**
+            build/release/reshade/**
 
       - name: Upload build log on failure
         if: failure()
