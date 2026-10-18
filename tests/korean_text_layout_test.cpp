@@ -72,6 +72,16 @@ int main() {
         }
     }
 
+    // Credits include the NVIDIA Reflex product name.  Windows may shape its
+    // "fl" as one ligature glyph, which must be present in the prepared atlas.
+    for (const pt::ui::ShapedGlyph& glyph : subtitle_font.ShapeLine(pt::ui::DecodeUtf8("NVIDIA Reflex"), 0.0f)) {
+        if (!glyph.glyph) {
+            std::printf("FAIL: Korean credit ligature missing\n");
+            ++failures;
+            break;
+        }
+    }
+
     std::printf("Korean layout: %zu menu entries, %zu subtitles, %zu glyphs, %d failures\n",
                 std::size(pt::korean::kMenu), std::size(pt::korean::kSubtitles), font.Glyphs().size(), failures);
     return failures ? 1 : 0;
