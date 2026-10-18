@@ -74,12 +74,14 @@ int main() {
 
     // Latin product names can use standard ligatures such as `fl` (Reflex)
     // and `ff` (Coffee).  Every shaped glyph must exist in the Korean atlas.
-    for (const char* text : {"NVIDIA Reflex", "Coffee with Lisa"}) {
-        for (const pt::ui::ShapedGlyph& glyph : subtitle_font.ShapeLine(pt::ui::DecodeUtf8(text), 0.0f)) {
-            if (!glyph.glyph) {
-                std::printf("FAIL: Korean credit ligature missing in %s\n", text);
-                ++failures;
-                break;
+    for (const auto& face : {&font, &subtitle_font}) {
+        for (const char* text : {"NVIDIA Reflex", "Coffee with Lisa"}) {
+            for (const pt::ui::ShapedGlyph& glyph : face->ShapeLine(pt::ui::DecodeUtf8(text), 0.0f)) {
+                if (!glyph.glyph) {
+                    std::printf("FAIL: Korean ligature missing in %s\n", text);
+                    ++failures;
+                    break;
+                }
             }
         }
     }
