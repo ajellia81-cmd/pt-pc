@@ -65,6 +65,13 @@ jobs:
           build\release\pt_settings_roundtrip_test.exe build\release\test-output
           build\release\pt_korean_text_layout_test.exe
 
+      - name: Verify Coffee with Lisa runtime files
+        shell: cmd
+        run: |
+          if not exist build\release\lisa_date\script.txt exit /b 1
+          if not exist build\release\lisa_date\text\eng.txt exit /b 1
+          if not exist build\release\lisa_date\music.ogg exit /b 1
+
       - name: Upload executable and runtime files
         if: success()
         uses: actions/upload-artifact@v4
@@ -78,6 +85,7 @@ jobs:
             build/release/voice/**
             build/release/fonts/**
             build/release/licenses/**
+            build/release/lisa_date/**
 
       - name: Upload build log on failure
         if: failure()

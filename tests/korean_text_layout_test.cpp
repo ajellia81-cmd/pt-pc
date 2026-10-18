@@ -72,10 +72,11 @@ int main() {
         }
     }
 
-    // Latin product names can use standard ligatures such as `fl` (Reflex)
-    // and `ff` (Coffee).  Every shaped glyph must exist in the Korean atlas.
+    // Latin product names and credits can use every standard ligature in the
+    // bundled Noto Sans KR face.  Every resulting shaped glyph must exist in
+    // the Korean atlas, rather than only the individual ASCII characters.
     for (const auto& face : {&font, &subtitle_font}) {
-        for (const char* text : {"NVIDIA Reflex", "Coffee with Lisa"}) {
+        for (const char* text : {"NVIDIA Reflex", "Coffee with Lisa", "first", "office", "affluent"}) {
             for (const pt::ui::ShapedGlyph& glyph : face->ShapeLine(pt::ui::DecodeUtf8(text), 0.0f)) {
                 if (!glyph.glyph) {
                     std::printf("FAIL: Korean ligature missing in %s\n", text);
