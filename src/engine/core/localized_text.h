@@ -25,7 +25,9 @@ inline std::string Characters(int language) {
  // characters while their atlas is prepared, leaving that shaped glyph out of
  // the atlas.  Seed the standard Latin ligatures so product names and credits
  // render completely in every dynamically generated localized face.
- out += " ffi fi fl ffl ";
+ // Keep every sequence in its own run: `ffi` and `ffl` would otherwise
+ // consume the `ff` prefix and leave the standalone `ff` glyph unprepared.
+ out += " ff fi fl ffi ffl ";
  auto add=[&](const auto& menu,const auto& subtitles){for(const auto& e:menu) out+=e.text;for(const auto& e:subtitles)for(auto line:e.lines) out+=line;};
  switch(language){case 7:add(turkish::kMenu,turkish::kSubtitles);break;case 8:add(chinese::kMenu,chinese::kSubtitles);break;case 9:add(arabic::kMenu,arabic::kSubtitles);break;case 10:add(russian::kMenu,russian::kSubtitles);break;case 11:add(ukrainian::kMenu,ukrainian::kSubtitles);break;case 12:add(czech::kMenu,czech::kSubtitles);break;case 13:add(polish::kMenu,polish::kSubtitles);break;case 14:add(korean::kMenu,korean::kSubtitles);break;}
  if (language == 8) out += "韩国语韓国語";
