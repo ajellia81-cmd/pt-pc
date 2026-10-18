@@ -47,6 +47,13 @@ jobs:
       - name: Configure and build x64 Release
         shell: pwsh
         run: |
+          # The 1.0.5 source archive has no SPIR-V-to-HLSL helper, so it
+          # cannot produce the DXIL files required by the optional full D3D12
+          # renderer.  Keep that unavailable renderer out of this portable
+          # build instead of publishing an executable that advertises it but
+          # cannot start it.  The normal Vulkan renderer and D3D12-present
+          # path used by frame generation remain available.
+          $env:PT_CMAKE_ARGS = '-DPT_D3D12_GAME=OFF'
           & cmd.exe /c tools\build_pt.bat release 2>&1 | Tee-Object -FilePath windows-build.log
           $code = $LASTEXITCODE
           if ($code -ne 0) {
@@ -72,7 +79,6 @@ jobs:
           if not exist build\release\lisa_date\text\eng.txt exit /b 1
           if not exist build\release\lisa_date\music.ogg exit /b 1
           if not exist build\release\texture-tools\realesrgan-ncnn-vulkan.exe exit /b 1
-          if not exist build\release\D3D12\D3D12Core.dll exit /b 1
           if not exist build\release\pt-updater.exe exit /b 1
 
       - name: Assemble portable runtime
