@@ -72,13 +72,15 @@ int main() {
         }
     }
 
-    // Credits include the NVIDIA Reflex product name.  Windows may shape its
-    // "fl" as one ligature glyph, which must be present in the prepared atlas.
-    for (const pt::ui::ShapedGlyph& glyph : subtitle_font.ShapeLine(pt::ui::DecodeUtf8("NVIDIA Reflex"), 0.0f)) {
-        if (!glyph.glyph) {
-            std::printf("FAIL: Korean credit ligature missing\n");
-            ++failures;
-            break;
+    // Latin product names can use standard ligatures such as `fl` (Reflex)
+    // and `ff` (Coffee).  Every shaped glyph must exist in the Korean atlas.
+    for (const char* text : {"NVIDIA Reflex", "Coffee with Lisa"}) {
+        for (const pt::ui::ShapedGlyph& glyph : subtitle_font.ShapeLine(pt::ui::DecodeUtf8(text), 0.0f)) {
+            if (!glyph.glyph) {
+                std::printf("FAIL: Korean credit ligature missing in %s\n", text);
+                ++failures;
+                break;
+            }
         }
     }
 
