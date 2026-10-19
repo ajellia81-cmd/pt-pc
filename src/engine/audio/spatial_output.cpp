@@ -10,6 +10,7 @@
 #include <spatialaudioclient.h>
 #include <wrl/client.h>
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cstring>
