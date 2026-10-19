@@ -4846,6 +4846,7 @@ int RunGame(App& app, pt::Vfs& vfs) {
     game.SetGamePlusSetting(app.settings.game.game_plus, true);
     game.SetSoundCaptions(app.settings.accessibility.sound_captions);
     game.SetFovOffset(app.settings.accessibility.fov_offset);
+    const int boot_ui_language = std::clamp(game.Options().subtitle_language, 0, pt::game::UiAssets::kLanguageCount - 1);
     pt::game::GameSound sound(game);
     std::vector<float> captured;
     pt::audio::AudioOutput::SetPreferSpatial(app.settings.audio.spatial);
