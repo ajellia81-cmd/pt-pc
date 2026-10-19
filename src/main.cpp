@@ -4851,7 +4851,11 @@ int RunGame(App& app, pt::Vfs& vfs) {
     game.SetGamePlusSetting(app.settings.game.game_plus, true);
     game.SetSoundCaptions(app.settings.accessibility.sound_captions);
     game.SetFovOffset(app.settings.accessibility.fov_offset);
-    const int boot_ui_language = std::clamp(game.Options().subtitle_language, 0, pt::game::UiAssets::kLanguageCount - 1);
+    // The shader warmup screen is shown before the game's saved options are loaded.
+    // Use the system locale here so a Korean Windows install does not briefly show
+    // the English fallback before the Korean subtitle option is available.
+    const int boot_ui_language = std::clamp(pt::game::DefaultOptionsForLocale(pt::game::SystemLanguageTag()).subtitle_language, 0,
+                                            pt::game::UiAssets::kLanguageCount - 1);
     pt::game::GameSound sound(game);
     std::vector<float> captured;
     pt::audio::AudioOutput::SetPreferSpatial(app.settings.audio.spatial || app.settings.audio.dolby_atmos);
