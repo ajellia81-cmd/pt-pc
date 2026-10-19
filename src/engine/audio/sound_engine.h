@@ -18,7 +18,6 @@
 #include "engine/audio/controller_pcm_capture.h"
 #include "engine/audio/motion_generator.h"
 #include "engine/audio/sound_package.h"
-#include "engine/audio/spatial_audio.h"
 #include "engine/audio/wem.h"
 #include "engine/audio/wwise_bank.h"
 
@@ -115,8 +114,6 @@ public:
 
     void Render(float* out, uint32_t frames);
     void Render(float* out, uint32_t frames, uint32_t channels);
-    // Renders the legacy bed while exposing eligible mono 3D voices to a native spatial renderer.
-    void RenderWithSpatialSink(float* out, uint32_t frames, uint32_t channels, SpatialAudioSink* sink);
 
     struct LayerLink {
         const Layer* layer = nullptr;
@@ -362,9 +359,6 @@ private:
         std::array<std::vector<float>, 8> sc_rs;
         float sc_lpf_hist[8][4] = {};
         float sc_dry_prev = 0.0f;
-        // PT_TRACE_SPATIAL writes the routing decision once per positional voice.  Keeping this
-        // on the voice avoids turning the audio callback log into a per-render-period trace.
-        bool spatial_trace_logged = false;
     };
 
     struct BusRuntime {
@@ -589,9 +583,6 @@ private:
     std::atomic<uint32_t> motion_levels_{0};
     std::atomic<bool> frozen_{false};
     bool trace_ = false;
-    SpatialAudioSink* spatial_sink_ = nullptr;
-    uint32_t spatial_render_offset_ = 0;
-    std::vector<float> spatial_mono_;
 };
 
 }

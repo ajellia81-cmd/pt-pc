@@ -9,6 +9,9 @@ on:
       tag:
         description: Existing release tag
         required: true
+      source_commit:
+        description: Full source commit for a macOS-only rebuild (defaults to the release tag)
+        required: false
 
 permissions:
   actions: read
@@ -24,12 +27,20 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ inputs.run_id }}
           TAG: ${{ inputs.tag }}
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
         run: |
           set -euo pipefail
           test "$(gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --json conclusion --jq .conclusion)" = success
           build_sha="$(gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --json headSha --jq .headSha)"
           tag_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq .object.sha)"
-          test "$build_sha" = "$tag_sha"
+          if [ -n "$SOURCE_COMMIT" ]; then
+            [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+            test "$build_sha" = "$SOURCE_COMMIT"
+            status="$(gh api "repos/$GITHUB_REPOSITORY/compare/$tag_sha...$build_sha" --jq .status)"
+            case "$status" in identical|ahead) ;; *) exit 1 ;; esac
+          else
+            test "$build_sha" = "$tag_sha"
+          fi
           gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --dir artifacts
           mapfile -t files < <(find artifacts -type f \( -name 'P.T.PC.Port-macOS-*.zip' -o -name 'P.T.PC.Port-macOS-*.dmg' \) | sort)
           test "${#files[@]}" = 4

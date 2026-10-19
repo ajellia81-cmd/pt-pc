@@ -17,7 +17,7 @@ SoundSystem::~SoundSystem() {
     Shutdown();
 }
 
-bool SoundSystem::Init(Vfs& vfs, bool open_device, bool surround_output, bool object_spatial) {
+bool SoundSystem::Init(Vfs& vfs, bool open_device, bool surround_output) {
     Shutdown();
     vfs_ = &vfs;
     auto banks = std::make_unique<SoundBankSet>();
@@ -44,23 +44,19 @@ bool SoundSystem::Init(Vfs& vfs, bool open_device, bool surround_output, bool ob
         }
     }
     if (open_device) {
-        OpenDevice(surround_output, object_spatial);
+        OpenDevice(surround_output);
     }
     return true;
 }
 
-bool SoundSystem::OpenDevice(bool surround_output, bool object_spatial) {
+bool SoundSystem::OpenDevice(bool surround_output) {
     if (!engine_ || output_) {
         return output_ != nullptr;
     }
     auto output = std::make_unique<AudioOutput>();
     SoundEngine* engine = engine_.get();
     if (!output->Open(kOutputRate, surround_output,
-                      [engine](float* out, uint32_t frames, uint32_t channels) { engine->Render(out, frames, channels); },
-                      object_spatial ? AudioOutput::SpatialRenderFunction{[engine](float* out, uint32_t frames, uint32_t channels,
-                                                                                      SpatialAudioSink* sink) {
-                          engine->RenderWithSpatialSink(out, frames, channels, sink);
-                      }} : AudioOutput::SpatialRenderFunction{})) {
+                      [engine](float* out, uint32_t frames, uint32_t channels) { engine->Render(out, frames, channels); })) {
         LogWarn("audio: no playback device, offline rendering only");
         return false;
     }

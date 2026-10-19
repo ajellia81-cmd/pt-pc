@@ -3,7 +3,6 @@
 
 #include <cctype>
 #include <algorithm>
-#include <cmath>
 #include <cstring>
 #include <format>
 
@@ -63,8 +62,7 @@ uint64_t SubtitleTable::MarkerKey(std::string_view label) {
 
 bool SubtitleTable::Load(Vfs& vfs, std::string_view language, std::span<const std::vector<uint8_t>> sab_tables, std::string* error) {
     const std::string lang = NormalizeLanguage(language);
-    // Added languages reuse the English timing/category package and replace only its displayed text below.
-    std::string source = (lang == "Tur" || lang == "Zhs" || lang == "Ara" || lang == "Rus" || lang == "Ukr" || lang == "Ces" || lang == "Pol" || lang == "Kor") ? "Eng" : lang;
+    std::string source = (lang == "Tur" || lang == "Zhs" || lang == "Ara" || lang == "Rus" || lang == "Ukr" || lang == "Ces" || lang == "Pol") ? "Eng" : lang;
     if (source != "Eng" && !vfs.Archive().Contains(Vfs::ToArchivePath(PackagePath(source)))) {
         LogWarn("subtitles: {} missing, falling back to English", PackagePath(source));
         source = "Eng";
@@ -85,39 +83,16 @@ bool SubtitleTable::Load(Vfs& vfs, std::string_view language, std::span<const st
     if (!Parse(*subp, sab_tables, error)) {
         return false;
     }
-    const int translation_language = lang == "Tur" ? 7 : lang == "Zhs" ? 8 : lang == "Ara" ? 9 : lang == "Rus" ? 10 : lang == "Ukr" ? 11 : lang == "Ces" ? 12 : lang == "Pol" ? 13 : lang == "Kor" ? 14 : 0;
+    const int translation_language = lang == "Tur" ? 7 : lang == "Zhs" ? 8 : lang == "Ara" ? 9 : lang == "Rus" ? 10 : lang == "Ukr" ? 11 : lang == "Ces" ? 12 : lang == "Pol" ? 13 : 0;
     if (translation_language) {
         for (SubtitleEntry& entry : entries_) {
             bool found = false;
             auto translate = [&](const auto& table) {
-                for (const auto& t : table) if (t.key == entry.key && t.lines.size() != 0) {
-                    // The source package and Korean can split a spoken thought at different places.  Keep the source
-                    // duration and distribute it across the translated lines instead of silently dropping text.
-                    const std::vector<SubtitleLine> source_lines = entry.lines;
-                    entry.lines.resize(t.lines.size());
-                    auto time_at = [&](float position) {
-                        const size_t lower = std::min(static_cast<size_t>(position), source_lines.size() - 1);
-                        const size_t upper = std::min(lower + 1, source_lines.size() - 1);
-                        const float fraction = position - static_cast<float>(lower);
-                        return std::lerp(source_lines[lower].start_seconds,
-                                         upper == lower ? source_lines[lower].end_seconds : source_lines[upper].start_seconds,
-                                         fraction);
-                    };
-                    size_t i = 0;
-                    for (const std::string_view translated : t.lines) {
-                        SubtitleLine& line = entry.lines[i];
-                        line.start_seconds = time_at(static_cast<float>(i) * source_lines.size() / t.lines.size());
-                        line.end_seconds = i + 1 == t.lines.size() ? source_lines.back().end_seconds
-                            : time_at(static_cast<float>(i + 1) * source_lines.size() / t.lines.size());
-                        line.text = translated;
-                        std::replace(line.text.begin(), line.text.end(), '|', '\n');
-                        ++i;
-                    }
-                    found = true;
-                    break;
+                for (const auto& t : table) if (t.key == entry.key && t.lines.size() == entry.lines.size()) {
+                    size_t i=0; for (auto text : t.lines) { auto& line=entry.lines[i++].text; line=text; std::replace(line.begin(),line.end(),'|','\n'); } found = true; break;
                 }
             };
-            switch(translation_language) {case 7:translate(turkish::kSubtitles);break;case 8:translate(chinese::kSubtitles);break;case 9:translate(arabic::kSubtitles);break;case 10:translate(russian::kSubtitles);break;case 11:translate(ukrainian::kSubtitles);break;case 12:translate(czech::kSubtitles);break;case 13:translate(polish::kSubtitles);break;case 14:translate(korean::kSubtitles);break;}
+            switch(translation_language) {case 7:translate(turkish::kSubtitles);break;case 8:translate(chinese::kSubtitles);break;case 9:translate(arabic::kSubtitles);break;case 10:translate(russian::kSubtitles);break;case 11:translate(ukrainian::kSubtitles);break;case 12:translate(czech::kSubtitles);break;case 13:translate(polish::kSubtitles);break;}
             if (!found) { if (error) *error = std::format("{} subtitle {:08x} missing or line count differs", lang, entry.key); return false; }
         }
     }

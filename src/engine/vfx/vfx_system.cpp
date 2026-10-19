@@ -967,6 +967,7 @@ void System::Build(const ViewInfo& view, const TextureResolver& textures, const 
             const size_t first = lights.size();
             BuildShape(inst, world, def.shapes[i], inst.shapes[i], view, textures, cubes, lighting, out, lights);
             for (size_t k = first; k < lights.size(); ++k) {
+                lights[k].owner = key.owner;
                 lights[k].id = (key.owner * 0x9E3779B97F4A7C15ull) ^ (key.id << 12) ^ (uint64_t(i) << 6) ^ (k - first) ^ 0xFA00000000000000ull;
             }
         }

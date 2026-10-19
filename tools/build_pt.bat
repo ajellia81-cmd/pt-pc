@@ -1,27 +1,19 @@
 @echo off
-setlocal EnableExtensions EnableDelayedExpansion
+setlocal
 set "PRESET=%~1"
 if "%PRESET%"=="" set "PRESET=release"
 set "BUILD_NAME=%~2"
 if "%BUILD_NAME%"=="" set "BUILD_NAME=%PRESET%"
 set "TARGET_ARGS="
 if not "%~3"=="" set "TARGET_ARGS=--target %~3"
+set "BUILD_JOBS=%NUMBER_OF_PROCESSORS%"
+if not "%PT_BUILD_JOBS%"=="" set "BUILD_JOBS=%PT_BUILD_JOBS%"
 set "VSDIR="
 for /f "usebackq delims=" %%I in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VSDIR=%%I"
 if "%VSDIR%"=="" set "VSDIR=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools"
 set "PATH=%SystemRoot%\system32;%SystemRoot%;%SystemRoot%\System32\Wbem;%SystemRoot%\System32\WindowsPowerShell\v1.0;C:\Program Files\Git\cmd;%ProgramFiles(x86)%\Microsoft Visual Studio\Installer"
 call "%VSDIR%\VC\Auxiliary\Build\vcvars64.bat" >nul || exit /b 1
-rem Hosted runners sometimes retain VULKAN_SDK from a removed SDK version. Discard it before
-rem probing the installed directories so the Release build can use the SDK just installed by CI.
-if not "%VULKAN_SDK%"=="" if not exist "%VULKAN_SDK%\Bin\glslc.exe" set "VULKAN_SDK="
-if "%VULKAN_SDK%"=="" if exist "C:\VulkanSDK\" (
-  for /f "delims=" %%I in ('dir /b /ad /o-n "C:\VulkanSDK"') do if "!VULKAN_SDK!"=="" set "VULKAN_SDK=C:\VulkanSDK\%%I"
-)
 if "%VULKAN_SDK%"=="" set "VULKAN_SDK=C:\VulkanSDK\1.4.357.0"
-if not exist "%VULKAN_SDK%\Bin\glslc.exe" (
-  echo Vulkan SDK with glslc was not found at "%VULKAN_SDK%"
-  exit /b 4
-)
 set "PATH=C:\Program Files\LLVM\bin;%VULKAN_SDK%\Bin;%PATH%"
 cd /d "%~dp0.." || exit /b 1
 set "BUILD_DIR=build\%BUILD_NAME%"
@@ -36,5 +28,5 @@ rem PT_CMAKE_ARGS (tools/ci/release.py): configure again with these cache values
 if not "%PT_CMAKE_ARGS%"=="" (
   cmake --preset %PRESET% -B "%BUILD_DIR%" %SHARED% %PT_CMAKE_ARGS% || exit /b 2
 ) else if not exist "%BUILD_DIR%\CMakeCache.txt" cmake --preset %PRESET% -B "%BUILD_DIR%" %SHARED% || exit /b 2
-cmake --build "%BUILD_DIR%" --parallel %NUMBER_OF_PROCESSORS% %TARGET_ARGS% || exit /b 3
+cmake --build "%BUILD_DIR%" --parallel %BUILD_JOBS% %TARGET_ARGS% || exit /b 3
 echo BUILD_OK %CD%\%BUILD_DIR%\pt.exe

@@ -5,7 +5,7 @@ P.T. PC Port.app/Contents
   MacOS/extractor/PT.PkgExtract the setup's PKG extraction helper (--extractor), run by the game's first-run screen
   Frameworks/libMoltenVK.dylib Vulkan on Metal (pt looks for it here, src/engine/render/vk_context.cpp)
   Resources/                  what pt finds through SDL_GetBasePath(), which is this folder in a bundle: shaders/, fonts/,
-                              voice/, texture-tools/, licenses/ and the loop browser's previews
+                              voice/, licenses/ and the loop browser's previews
 
 Everything is signed ad hoc (no Developer ID): a downloaded copy needs System Settings > Privacy & Security > Open Anyway
 once after the first launch attempt; see docs/macos.md.
@@ -116,10 +116,9 @@ def main():
         shutil.copy2(spv, resources / "shaders" / spv.name)
     copy_voice(build / "voice", resources / "voice")
     shutil.copytree(build / "fonts", resources / "fonts")
-    if (build / "texture-tools").is_dir():
-        shutil.copytree(build / "texture-tools", resources / "texture-tools")
     if (build / "licenses").is_dir():
-        shutil.copytree(build / "licenses", resources / "licenses")
+        shutil.copytree(build / "licenses", resources / "licenses",
+                        ignore=shutil.ignore_patterns("enhanced-textures", "Real-ESRGAN-*.txt", "bc7enc.txt"))
     shutil.copy2(REPO / "README.md", resources / "README.md")
     shutil.copy2(REPO / "docs" / "macos.md", resources / "macOS.md")
     # the app icon: the PS4 game's icon0 (assets/pt.icns, as assets/pt.ico on Windows)

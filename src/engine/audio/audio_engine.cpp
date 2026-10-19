@@ -18,7 +18,7 @@ AudioOutput::~AudioOutput() {
     Close();
 }
 
-bool AudioOutput::Open(uint32_t sample_rate, bool surround, RenderFunction render, SpatialRenderFunction spatial_render) {
+bool AudioOutput::Open(uint32_t sample_rate, bool surround, RenderFunction render) {
     Close();
     if (devices::AudioStarting()) {
         LogWarn("audio: the audio devices are still starting (surround requested: {})", surround);
@@ -30,9 +30,9 @@ bool AudioOutput::Open(uint32_t sample_rate, bool surround, RenderFunction rende
         return false;
     }
     render_ = std::move(render);
-    if (prefer_spatial_ || prefer_object_spatial_) {
+    if (prefer_spatial_) {
         auto spatial = std::make_unique<SpatialOutput>();
-        if (spatial->Open(sample_rate, render_, prefer_object_spatial_ ? std::move(spatial_render) : SpatialRenderFunction{})) {
+        if (spatial->Open(sample_rate, render_)) {
             spatial_ = std::move(spatial);
             channels_ = 8;
             return true;

@@ -17,6 +17,7 @@
 #include "engine/core/log.h"
 #include "engine/core/resource_path.h"
 #include "engine/render/d3d12/backend/d3d12_native.h"
+#include "engine/render/d3d12/backend/reshade_native.h"
 #include "engine/render/mesh.h"
 #include "engine/render/upscale/upscale_platform.h"
 #include "engine/render/upscale/streamline.h"
@@ -249,7 +250,10 @@ bool DeviceImpl::Init(std::string& error) {
         o.luid = options_.adapter_luid;
     }
     if (streamline::ActiveD3D12()) {
-        o.device_created = [](ID3D12Device* device, const uint8_t (&luid)[8]) { streamline::DeviceCreatedD3D12(device, luid); };
+        o.device_created = [](ID3D12Device* device, const uint8_t (&luid)[8]) {
+            const auto native = ReShadeNative(device);
+            streamline::DeviceCreatedD3D12(native.Get(), luid);
+        };
     }
     if (!bridge_.Create(o, error)) {
         return false;

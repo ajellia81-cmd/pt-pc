@@ -788,6 +788,10 @@ void Context::SetHdrMetadata() {
     if (!hdr_metadata || !vkSetHdrMetadataEXT || !swapchain.handle || swapchain_owner_ || !(scrgb || hdr10)) {
         return;
     }
+#if defined(__APPLE__)
+    LogInfo("vulkan: HDR metadata left unset on macOS (MoltenVK would scale a linear 1.0 to 1 nit)");
+    return;
+#endif
     VkHdrMetadataEXT metadata{VK_STRUCTURE_TYPE_HDR_METADATA_EXT};
     if (hdr10) {
         metadata.displayPrimaryRed = {0.708f, 0.292f};

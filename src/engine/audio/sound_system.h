@@ -53,7 +53,7 @@ public:
     SoundSystem(const SoundSystem&) = delete;
     SoundSystem& operator=(const SoundSystem&) = delete;
 
-    bool Init(Vfs& vfs, bool open_device, bool surround_output = false, bool object_spatial = false);
+    bool Init(Vfs& vfs, bool open_device, bool surround_output = false);
     void Shutdown();
 
     PlayingId PostEvent(std::string_view event_name, GameObjectId object = 0);
@@ -105,7 +105,7 @@ public:
     SoundSystemStats Stats() const;
     bool HasEvent(uint32_t event_id) const;
     bool DeviceOpen() const;
-    bool OpenDevice(bool surround_output, bool object_spatial = false);
+    bool OpenDevice(bool surround_output);
     uint64_t RenderedFrames() const;
     MotionLevels Motion() const;
     void SetControllerCaptureEvent(uint32_t event_id);

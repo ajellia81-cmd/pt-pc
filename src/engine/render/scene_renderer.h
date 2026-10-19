@@ -94,6 +94,7 @@ struct SceneFilterContext {
 };
 
 struct DrawItem {
+    uint32_t light_fitting = 0;
     const GpuMesh* mesh = nullptr;
     glm::mat4 transform{1.0f};
     glm::vec4 tint{1.0f};
@@ -187,6 +188,7 @@ public:
 
     void Render(const Camera& camera, const std::vector<DrawItem>& items);
     void ResetUpscaleHistory() { up_.reset = true; }
+    void PrepareNgxReload();
     void SetUpscaleReactiveFrame(bool on) { reactive_frame_ = on; }
     void Render(const Camera& camera, const std::vector<DrawItem>& items, const SceneLighting& lighting, float dt);
     void DrawDebugUi();
@@ -197,6 +199,7 @@ public:
         timed_ = true;
     }
 
+    bool resumed_threshold_artifact = false;
     DebugView debug_view = DebugView::Lit;
     RenderToggles toggles;
     AppSettings::Graphics graphics;
@@ -215,10 +218,14 @@ public:
         bool enabled = false;
         NeuralStyle style = NeuralStyle::Default;
         float intensity = 1.0f;
+        bool small_model = false;
         float scale = 1.0f;
+        unsigned every = 1;
+        bool pre = false;
         float paper_white = 1.0f;
     } neural;
     const UpscaleStats& UpscaleStatistics() const { return upscale_stats_; }
+    const NeuralRenderingSupport* NativeNeuralStatus() const { return UpscaleHost::Get().NativeNeuralStatus(); }
     bool UpscalerAvailable(UpscalerKind kind, std::string& reason);
     bool RayReconstructionAvailable(std::string& reason);
     void RequestTargetDump() { dump_requested_ = true; }
@@ -260,6 +267,9 @@ private:
         gpu::BindingSetHandle post_set;
         gpu::QueryPoolHandle queries;
         gpu::QueryPoolHandle upscale_queries;
+        gpu::QueryPoolHandle neural_queries;
+        bool neural_timed = false;
+        uint64_t neural_frame = 0;
         gpu::BufferResource dispatch;
         gpu::BindingSetHandle dispatch_set;
         bool upscale_timed = false;
@@ -275,6 +285,7 @@ private:
     };
 
     struct Draw {
+        uint32_t light_fitting = 0;
         const GpuMesh* mesh = nullptr;
         const SubMesh* sub = nullptr;
         glm::mat4 transform{1.0f};
@@ -343,6 +354,7 @@ private:
     void ReadMeasurements(FrameSlot& slot, float dt, const ExposureSettings& settings);
     void SettleExposure(const ExposureSettings& settings);
     static float MeterLuminance(const glm::vec2* texels, uint32_t count);
+    float ExposureCompensationFor(float ev, const ExposureSettings& settings) const;
     float ExposureFor(float ev, const ExposureSettings& settings) const;
 
     void BindSets(gpu::CommandList& cmd, gpu::BindPoint point);
@@ -364,6 +376,10 @@ private:
     void RecordPost(gpu::CommandList& cmd, const SceneLighting& lighting, float dt);
     void RecordReflectionSample(gpu::CommandList& cmd, const SceneLighting& lighting);
     void RecordReflections(gpu::CommandList& cmd, const ViewSetup& view);
+    void RecordReflectMap(gpu::CommandList& cmd, const ViewSetup& view);
+    void RecordReflectMapMarch(gpu::CommandList& cmd, const ViewSetup& view, const glm::vec3& plane);
+    bool reflect_map_early_ = false;
+    bool reflect_map_made_ = false;
     void RecordReflectionTemporal(gpu::CommandList& cmd, const ViewSetup& view, gpu::PassPush push);
     void RecordMirrorTemporal(gpu::CommandList& cmd);
     bool RecordDepthOfField(gpu::CommandList& cmd, const ScreenSettings& screen, int& current);
@@ -408,6 +424,7 @@ private:
     void RecordSceneCopy(gpu::CommandList& cmd, RenderTarget& output);
     void RecordDumpCopy(gpu::CommandList& cmd, RenderTarget& target, gpu::BufferResource& buffer);
     void RecordEffects(gpu::CommandList& cmd, RenderTarget& output, SceneVfxContext context);
+    void RecordUpscaleMotion(gpu::CommandList& cmd, const ViewSetup& view, bool fsr_rr = false);
     void RecordUpscaleInputs(gpu::CommandList& cmd, const ViewSetup& view);
     void RecordNeuralRendering(gpu::CommandList& cmd);
     void RecordUpscale(gpu::CommandList& cmd, float dt);
@@ -501,6 +518,7 @@ private:
     gpu::BufferResource dump_mirror_;
     gpu::Extent2D output_extent_{0, 0};
     bool targets_upscaled_ = false;
+    uint64_t neural_output_epoch_ = 1;
     bool history_valid_ = false;
 
     gpu::ImageResource lut1_;
@@ -575,6 +593,7 @@ private:
     gpu::PipelineHandle up_nr_decode_;
     bool nr_feature_ready_ = false;
     gpu::Extent2D nr_extent_{};
+    bool nr_small_model_ = false;
 
     std::unique_ptr<RayTracing> rt_;
     SubsurfacePass sss_;
@@ -669,6 +688,7 @@ private:
     bool pt_history_ = false;
     bool pt_indirect_on_ = true;
     bool rr_frame_ = false;
+    bool fsr_rr_input_check_ = false;
     bool rr_raster_ = false;
     gpu::PipelineHandle rt_rr_guides_;
     void RecordRasterRrGuides(gpu::CommandList& cmd, const ViewSetup& view);
@@ -680,6 +700,11 @@ private:
     RenderTarget rr_specular_albedo_;
     RenderTarget rr_normal_roughness_;
     RenderTarget rr_hit_distance_;
+    RenderTarget fsr_rr_input_[4];
+    RenderTarget fsr_rr_depth_, fsr_rr_motion_, fsr_rr_normal_;
+    gpu::PipelineHandle fsr_rr_prepare_, fsr_rr_resolve_, fsr_rr_motion_trace_, fsr_rr_velocity_;
+    bool EnsureFsrRrTargets();
+    void RecordFsrRayRegeneration(gpu::CommandList& cmd, const ViewSetup& view);
     bool EnsureRrTargets();
     void DestroyRrTargets();
     void RecordRrGuides(gpu::CommandList& cmd, const ViewSetup& view);
@@ -742,6 +767,8 @@ private:
     Camera camera_;
 
     float ev_ = 0.0f;
+    double exposure_camera_dt_ = static_cast<double>(1.0f / 60.0f);
+    float exposure_previous_dt_ = 0.0f;
     bool adaptation_valid_ = false;
     bool ev_pinned_ = false;
     float exposure_ = 1.0f;
@@ -772,6 +799,7 @@ private:
         gpu::Extent2D created_render{};
         gpu::Extent2D created_output{};
         bool enabled = false;
+        bool native_neural_only = false;
         bool created = false;
         bool ray_reconstruction = false;
         bool reset = true;
@@ -823,6 +851,7 @@ private:
     std::map<std::string, std::pair<bool, float>> light_change_state_;
     std::set<std::string> previous_shadowed_;
     lightcull::OccluderSet main_occluders_;
+    bool mesh_occlusion_ = false;
     lightcull::OccluderSet mirror_occluders_;
     bool legacy_light_cull_ = false;
     glm::mat4 main_cull_view_projection_{1.0f};

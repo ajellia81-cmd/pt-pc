@@ -190,6 +190,9 @@ vfx::LightBlock LightBlockAt(const SceneLighting& lighting, const glm::vec3& cen
 
 SceneLight ToSceneLight(const vfx::LightOut& v) {
     SceneLight l;
+    if (v.owner == (kGimmickOwner | static_cast<uint64_t>(GimmickType::CeilLamp))) {
+        l.light_fitting = static_cast<uint32_t>(GimmickType::CeilLamp) + 1;
+    }
     l.id = v.id;
     l.type = v.spot ? LightType::Spot : LightType::Point;
     l.position = v.position;

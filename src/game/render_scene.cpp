@@ -1086,6 +1086,7 @@ void RenderSceneBuilder::Build(Game& game, const Camera& camera, float dt, Scene
     screen.reflect_edge = fx.reflect_edge;
     screen.subsurface_scatter = fx.subsurface_scatter;
     screen.full_screen_blur = fx.full_screen_blur;
+    screen.mesh_occlusion = game.Nazo().IsPeepholeTheaterActive();
     screen.colour_banding_canceller = fx.colour_banding_canceller;
     screen.blur_blend_rate = fx.blur_blend_rate;
     screen.blur_fetch_band = fx.blur_fetch_band;

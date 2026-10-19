@@ -27,6 +27,7 @@ constexpr int kMaxPlayDepth = 32;
 constexpr uint16_t kRumbleDevice = 406;
 constexpr float kCenterGain = 0.70710678f;
 constexpr uint64_t kEbootFrame = 1024;
+
 uint64_t MsToSamples(double ms) {
     return ms <= 0.0 ? 0 : static_cast<uint64_t>(std::llround(ms * kSamplesPerMs));
 }
@@ -3191,65 +3192,9 @@ uint32_t SoundEngine::RenderVoice(Voice& v, uint32_t offset, uint32_t frames) {
         v.sc_dry_prev = v.dry_gain;
         v.gain_init = true;
     }
-    // Preserve a mono, post-filter copy for the native Windows spatial path before the legacy speaker matrix folds it.
-    // Every eligible 3D voice takes this direct path, including radios, doors and character voices whose bus also has effects.
-    // Auxiliary sends still feed the conventional shared effect buses below, so room tails are mixed once instead of being
-    // cloned into every dynamic object. Restricting effect-bus voices to the bed made those common emitters lose their true
-    // rear position altogether.
-    // Dynamic objects bypass the stereo bus renderer, but must retain the same gain chain that
-    // their dry signal would have received on its way to the master.  Without this, a spatial
-    // object skips per-bus attenuation and can hit the endpoint already clipped.
-    BusRuntime* bus = Bus(v.bus_id);
-    const float spatial_chain0 = bus ? bus->chain_prev : 1.0f;
-    const float spatial_chain1 = bus ? bus->chain : 1.0f;
-    bool routed_to_spatial = false;
-    const bool trace_spatial = std::getenv("PT_TRACE_SPATIAL") != nullptr;
-    const bool positional_voice = v.node && v.node->positioning && v.node->positioning->has_3d;
-    const bool dynamic_candidate = spatial_sink_ && positional_voice && v.node->positioning->spatialized && v.channels <= 2;
-    // Wwise can mark positional emitters as stereo media. A Windows dynamic object is mono, so fold an eligible
-    // stereo source to one object at its authored position instead of leaving it in the legacy left/right bed.
-    // Wider source formats remain in that bed.
-    if (dynamic_candidate) {
-        const float normalization = v.mix_l[0] + v.mix_r[0];
-        if (v.channels == 2 || normalization > 1e-6f) {
-            spatial_mono_.resize(produced);
-            const auto object = objects_.find(v.object);
-            static const ObjectState kEmptyObject;
-            const ObjectState& state = object == objects_.end() ? kEmptyObject : object->second;
-            const glm::vec3 relative = EmitterPosition(v, state) - listener_position_;
-            // The game's listener basis points forward, while Windows Spatial Sound's listener-space Z points back.
-            const glm::vec3 position(glm::dot(relative, listener_right_), glm::dot(relative, listener_up_),
-                                     -glm::dot(relative, listener_forward_));
-            for (uint32_t i = 0; i < produced; ++i) {
-                const float w = (static_cast<float>(i) + 1.0f) / static_cast<float>(produced);
-                const float fade = fade0 + (fade1 - fade0) * w;
-                const float chain = spatial_chain0 + (spatial_chain1 - spatial_chain0) *
-                                                          (static_cast<float>(offset + i) + 1.0f) /
-                                                          static_cast<float>(frames);
-                const float gain = (v.sc_dry_prev + (v.dry_gain - v.sc_dry_prev) * w) * fade * chain;
-                // The legacy output applies the master gain and clamps the final device samples. Dynamic spatial
-                // objects bypass that final stereo pass, so apply the same endpoint protection here to avoid
-                // over-range samples distorting in the Windows spatial renderer.
-                const float mono = v.channels == 1 ? (out_l[i] + out_r[i]) / normalization
-                                                   : 0.5f * (sc_voice_[0][i] + sc_voice_[1][i]);
-                spatial_mono_[i] = std::clamp(mono * gain * master_gain_, -1.0f, 1.0f);
-            }
-            routed_to_spatial = spatial_sink_->SubmitMono(v.serial, spatial_render_offset_ + offset, spatial_mono_, position);
-            if (trace_spatial && !v.spatial_trace_logged) {
-                LogInfo("audio: spatial voice {} node {} object {} channels {} -> {} at ({:.2f}, {:.2f}, {:.2f})", v.serial,
-                        v.node->id, v.object, v.channels, routed_to_spatial ? "dynamic" : "bed (no dynamic slot)", position.x,
-                        position.y, position.z);
-                v.spatial_trace_logged = true;
-            }
-        }
-    }
-    if (trace_spatial && positional_voice && !v.spatial_trace_logged) {
-        LogInfo("audio: spatial voice {} node {} object {} stays in bed (sink {}, spatialized {}, channels {})", v.serial, v.node->id,
-                v.object, spatial_sink_ ? "on" : "off", v.node->positioning->spatialized ? "yes" : "no", v.channels);
-        v.spatial_trace_logged = true;
-    }
     const float inv = 1.0f / static_cast<float>(produced);
     const float block_inv = 1.0f / static_cast<float>(frames);
+    BusRuntime* bus = Bus(v.bus_id);
     if (controller_pcm_capture_.HasSelectedEvents()) {
         const auto record = playing_.find(v.playing_id);
         if (record != playing_.end()) {
@@ -3300,11 +3245,9 @@ uint32_t SoundEngine::RenderVoice(Voice& v, uint32_t offset, uint32_t frames) {
             }
         }
     };
-    // The dynamic object is the dry path for an eligible 3D voice. Keep its aux sends in the conventional bed so
-    // authored reverbs, music and UI retain their existing treatment without duplicating the direct sound.
-    if (!routed_to_spatial) mix(bus, v.gain_prev, target, v.sc_mode == 0);
+    mix(bus, v.gain_prev, target, v.sc_mode == 0);
     std::copy(target, target + 4, v.gain_prev);
-    if (!routed_to_spatial && bus && bus->sc_direct && v.sc_mode != 0 && (v.sc_dry_prev != 0.0f || v.dry_gain != 0.0f)) {
+    if (bus && bus->sc_direct && v.sc_mode != 0 && (v.sc_dry_prev != 0.0f || v.dry_gain != 0.0f)) {
         float* weight = sc_weight_.data();
         for (uint32_t i = 0; i < produced; ++i) {
             const float w = (static_cast<float>(i) + 1.0f) * inv;
@@ -3720,11 +3663,9 @@ void SoundEngine::Render(float* out, uint32_t frames, uint32_t output_channels) 
     uint32_t done = 0;
     while (done < frames) {
         const uint32_t n = std::min(kBlockFrames, frames - done);
-        spatial_render_offset_ = done;
         RenderBlock(out + static_cast<size_t>(done) * output_channels, n, output_channels);
         done += n;
     }
-    spatial_render_offset_ = 0;
     if (!global_pause_) {
         rendered_frames_.fetch_add(frames);
     }
@@ -3768,13 +3709,6 @@ void SoundEngine::Render(float* out, uint32_t frames, uint32_t output_channels) 
 #else
     _mm_setcsr(csr);
 #endif
-}
-
-void SoundEngine::RenderWithSpatialSink(float* out, uint32_t frames, uint32_t channels, SpatialAudioSink* sink) {
-    // AudioOutput invokes this synchronously from its render period, so the sink cannot retain pointers to mixer buffers.
-    spatial_sink_ = sink;
-    Render(out, frames, channels);
-    spatial_sink_ = nullptr;
 }
 
 }

@@ -109,11 +109,16 @@ bool EvaluateLight(Light l, View v, Surface s, bool shadows, vec2 frag, out vec3
     const vec3 dither_frag = vec3(frag, v.exposure.w);
     diffuse = vec3(0.0);
     specular = vec3(0.0);
+    float box_fade = 1.0;
     if (l.info.z == 1) {
         vec3 q = (l.area * vec4(s.world, 1.0)).xyz;
-        if (1.0 - max(abs(q.z), max(abs(q.x), abs(q.y))) < 0.0) {
+        float inside = 1.0 - max(abs(q.z), max(abs(q.x), abs(q.y)));
+        if (inside < 0.0) {
             return false;
         }
+#ifdef PT_RT_FULL
+        box_fade = smoothstep(0.0, 0.08, inside);
+#endif
     } else if (l.info.z == 2) {
         vec4 q = l.area * vec4(s.world, 1.0);
         if (q.w <= 0.0) {
@@ -132,7 +137,7 @@ bool EvaluateLight(Light l, View v, Surface s, bool shadows, vec2 frag, out vec3
     float d = spot ? max(l.range.y, dist + l.range.x) : max(l.range.y, dist) + l.range.x;
     float d2 = d * d;
     float att = max(0.0, 1.0 / d2 - d2 * l.range.z);
-    vec3 radiance = l.color.rgb * att * v.exposure.x;
+    vec3 radiance = l.color.rgb * att * v.exposure.x * box_fade;
     float shadow_cone = 1.0;
     if (spot) {
         vec3 axis = mat3(v.view) * l.direction.xyz;
@@ -176,7 +181,7 @@ bool EvaluateLight(Light l, View v, Surface s, bool shadows, vec2 frag, out vec3
 #endif
     float vis = 1.0 + l.scales.z * (shadow - 1.0);
 #if defined(PT_RT_SHADOWS) || defined(PT_RT_CONTACT)
-    if (g_contact_reach > 0.0 && l.scales.w > 0.0 && (g_contact_legacy || l.scales.z > 0.0) && (dot(s.N, L) > 0.0 || s.translucency > 0.0)) {
+    if (g_contact_reach > 0.0 && (uint(l.scales.w) & 1u) != 0u && (g_contact_legacy || l.scales.z > 0.0) && (dot(s.N, L) > 0.0 || s.translucency > 0.0)) {
         vec3 n_world = normalize(mat3(v.inv_view) * s.N);
         if (g_contact_samples > 0u && !g_contact_legacy) {
             float contact = RtContactSoft(l, s.world, n_world, s.translucency > 0.0, g_contact_reach, shadow_cone, g_contact_samples, frag,
