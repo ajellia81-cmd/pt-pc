@@ -12,7 +12,7 @@
 #include "engine/render/upscale/frame_generation.h"
 #include "engine/render/d3d12/vk_d3d12_share.h"
 #include "engine/render/upscale/streamline.h"
-#ifdef _WIN32
+#if defined(_WIN32) && defined(PT_D3D12_GAME)
 #include "engine/render/d3d12/backend/d3d12_native.h"
 #endif
 
@@ -326,7 +326,7 @@ bool SceneRenderer::BeginUpscaleFrame(gpu::Extent2D output) {
     streamline::SetFrameGenMultiplier(static_cast<unsigned>(std::clamp(upscale.dlssg_multiplier, 2, 4)));
     if (gpu_->Info().backend == gpu::Backend::D3D12) {
         const bool active = SetupUpscaler(output);
-#ifdef _WIN32
+#if defined(_WIN32) && defined(PT_D3D12_GAME)
         using gpu::d3d12::FrameGenOwner;
         const bool generate = active && up_.backend != nullptr && vr_eye_ < 0;
         const FrameGenOwner owner = !generate                                         ? FrameGenOwner::None
@@ -821,7 +821,7 @@ bool SceneRenderer::RecordUpscaleDispatch() {
         cmd.UseTargets({{&hdr_, gpu::Layout::ShaderReadOnly}, {&upscaled_, gpu::Layout::General}});
         upscaled = true;
     } else {
-#ifdef _WIN32
+#if defined(_WIN32) && defined(PT_D3D12_GAME)
         static const bool force_pre = std::getenv("PT_NR_PRE") != nullptr;
         if ((up_dispatch_.neural_pre || force_pre) && gpu_->Info().backend == gpu::Backend::D3D12 && nr_native::Enabled() && up_dispatch_.neural_enabled) {
             RenderTarget& input = handy_demod_ ? opaque_ : hdr_;
@@ -844,7 +844,7 @@ bool SceneRenderer::RecordUpscaleDispatch() {
         upscaled = up_.backend->Dispatch(up_dispatch_);
     }
     if (gpu_->Info().backend == gpu::Backend::D3D12) {
-#ifdef _WIN32
+#if defined(_WIN32) && defined(PT_D3D12_GAME)
         const bool pre_neural = (up_dispatch_.neural_pre || std::getenv("PT_NR_PRE") != nullptr) && !up_.native_neural_only;
         if (upscaled && nr_native::Enabled() && !pre_neural) {
             FrameSlot& slot = slots_[renderer_->FrameIndex()];
