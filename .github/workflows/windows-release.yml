@@ -79,7 +79,8 @@ jobs:
       - name: Verify packaged runtime files
         shell: cmd
         run: |
-          for %%F in (build\release\pt_release.exe build\release\pt_release.exe.upscalers.json build\release\lisa_date\script.txt build\release\lisa_date\text\eng.txt build\release\lisa_date\text\kor.txt build\release\lisa_date\music.ogg build\release\texture-tools\realesrgan-ncnn-vulkan.exe build\release\pt-updater.exe) do (
+          rem The texture utility and updater are optional developer tools; tools/package.py does not ship them.
+          for %%F in (build\release\pt_release.exe build\release\pt_release.exe.upscalers.json build\release\lisa_date\script.txt build\release\lisa_date\text\eng.txt build\release\lisa_date\text\kor.txt build\release\lisa_date\music.ogg) do (
             if not exist "%%F" (
               echo Missing packaged runtime file: %%F
               exit /b 1
