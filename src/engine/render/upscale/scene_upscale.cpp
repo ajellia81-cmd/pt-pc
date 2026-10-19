@@ -821,7 +821,7 @@ bool SceneRenderer::RecordUpscaleDispatch() {
         cmd.UseTargets({{&hdr_, gpu::Layout::ShaderReadOnly}, {&upscaled_, gpu::Layout::General}});
         upscaled = true;
     } else {
-#if defined(_WIN32) && defined(PT_D3D12_GAME)
+#ifdef _WIN32
         static const bool force_pre = std::getenv("PT_NR_PRE") != nullptr;
         if ((up_dispatch_.neural_pre || force_pre) && gpu_->Info().backend == gpu::Backend::D3D12 && nr_native::Enabled() && up_dispatch_.neural_enabled) {
             RenderTarget& input = handy_demod_ ? opaque_ : hdr_;
@@ -844,7 +844,7 @@ bool SceneRenderer::RecordUpscaleDispatch() {
         upscaled = up_.backend->Dispatch(up_dispatch_);
     }
     if (gpu_->Info().backend == gpu::Backend::D3D12) {
-#if defined(_WIN32) && defined(PT_D3D12_GAME)
+#ifdef _WIN32
         const bool pre_neural = (up_dispatch_.neural_pre || std::getenv("PT_NR_PRE") != nullptr) && !up_.native_neural_only;
         if (upscaled && nr_native::Enabled() && !pre_neural) {
             FrameSlot& slot = slots_[renderer_->FrameIndex()];

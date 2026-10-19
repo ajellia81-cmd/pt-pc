@@ -820,7 +820,7 @@ const NeuralRenderingSupport* UpscaleHost::NativeNeuralStatus() const {
 }
 
 bool UpscaleHost::RecordNativeNeural(const UpscaleDispatch& dispatch) {
-#if defined(_WIN32) && defined(PT_D3D12_GAME)
+#ifdef _WIN32
     if (!d3d12_device_ || !nr_native::Enabled()) return false;
     if (!dispatch.neural_enabled && !native_neural_) return true;
     if (!native_neural_failure_.reason.empty()) return false;

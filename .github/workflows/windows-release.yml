@@ -47,13 +47,6 @@ jobs:
       - name: Configure and build x64 Release
         shell: pwsh
         run: |
-          # The 1.0.5 source archive has no SPIR-V-to-HLSL helper, so it
-          # cannot produce the DXIL files required by the optional full D3D12
-          # renderer.  Keep that unavailable renderer out of this portable
-          # build instead of publishing an executable that advertises it but
-          # cannot start it.  The normal Vulkan renderer and D3D12-present
-          # path used by frame generation remain available.
-          $env:PT_CMAKE_ARGS = '-DPT_D3D12_GAME=OFF'
           & cmd.exe /c tools\build_pt.bat release 2>&1 | Tee-Object -FilePath windows-build.log
           $code = $LASTEXITCODE
           if ($code -eq 0) {
@@ -79,19 +72,24 @@ jobs:
       - name: Verify packaged runtime files
         shell: cmd
         run: |
-          rem The texture utility and updater are optional developer tools; tools/package.py does not ship them.
           for %%F in (build\release\pt_release.exe build\release\pt_release.exe.upscalers.json build\release\lisa_date\script.txt build\release\lisa_date\text\eng.txt build\release\lisa_date\text\kor.txt build\release\lisa_date\music.ogg) do (
             if not exist "%%F" (
-              echo Missing packaged runtime file: %%F
+              echo Missing localized runtime file: %%F
               exit /b 1
             )
           )
 
-      - name: Assemble portable runtime
-        shell: cmd
+      - name: Download original 1.0.6 Windows runtime
+        shell: pwsh
         run: |
-          if exist artifacts rmdir /s /q artifacts
-          python tools\package.py --build build\release --out artifacts --exe build\release\pt_release.exe
+          $ErrorActionPreference = 'Stop'
+          Invoke-WebRequest -Uri 'https://github.com/LoreanXavier/pt-pc/releases/download/v1.0.6/P.T.PC.Port-portable-windows.zip' -OutFile baseline-windows.zip
+          if ((Get-Item baseline-windows.zip).Length -lt 400MB) { throw 'The 1.0.6 baseline download is incomplete' }
+
+      - name: Assemble localized runtime without dropping original files
+        shell: pwsh
+        run: |
+          python tools\package_windows_overlay.py --baseline baseline-windows.zip --build build\release --out artifacts
 
       - name: Upload portable runtime
         if: success()
