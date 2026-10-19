@@ -47,7 +47,7 @@ jobs:
       - name: Configure and build x64 Release
         shell: pwsh
         run: |
-          & cmd.exe /c tools\build_pt.bat release 2>&1 | Tee-Object -FilePath windows-build.log
+          & cmd.exe /c tools\build_pt.bat release release pt_release 2>&1 | Tee-Object -FilePath windows-build.log
           $code = $LASTEXITCODE
           if ($code -eq 0) {
             cmake --build build\release --target pt_release 2>&1 | Tee-Object -FilePath windows-build.log -Append
