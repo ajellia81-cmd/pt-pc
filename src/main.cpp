@@ -282,6 +282,7 @@ constexpr OptionSpec kOptionSpecs[] = {
     {"--release-locks", 0, "the release build's loop browser locks"},
     {"--third-person", 0, "the experimental third person view on (Extras; pt.ini is not changed)"},
     {"--no-release-locks", 0, "no loop browser locks"},
+    {"--unlock-all", 0, "testing: temporarily unlock every loop and Museum entry (does not change saves)"},
     {"--make-loop-previews", 1, "<folder> shoot the loop browser previews and exit (headless)"},
     {"--dlss5-install", 1, "<folder> install DLSS 5 into that data folder and exit (tests)"},
     {"--dlss5-arch", 1, "<0|75|86|89> the GPU code --dlss5-install takes (0: RTX 50, none)"},
@@ -405,7 +406,7 @@ Options ParseOptions(int argc, char** argv) {
             options.street_offer = answer == "walk" ? 1 : answer == "restart" ? 2 : answer == "never" ? -1 : 0;
         } else if (arg == "--release-locks") {
             options.release_locks = true;
-        } else if (arg == "--no-release-locks") {
+        } else if (arg == "--no-release-locks" || arg == "--unlock-all") {
             options.release_locks = false;
         } else if (arg == "--third-person") {
             options.third_person = true;

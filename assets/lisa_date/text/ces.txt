@@ -6,6 +6,7 @@ ui_auto = Auto
 ui_skip = Přeskočit
 ui_affection = Náklonnost
 ui_leave_hold = Podržením odejdete z rande
+ui_title = Káva s Lisou
 title_1 = Část 1: Černá káva
 title_2 = Část 2: Dvě kostky cukru
 title_3 = Část 3: Poslední objednávky

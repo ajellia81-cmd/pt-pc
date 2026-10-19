@@ -1134,8 +1134,10 @@ void GameUi::Record(gpu::CommandList& cmd, gpu::ImageViewHandle target, gpu::Ext
     }
     layers.push_back({kSubliminalStringPriority, [&] { DrawSubliminal(batch, true); }});
     layers.push_back({kSubliminalNoisePriority, [&] { DrawSubliminal(batch, false); }});
-    layers.push_back({strong_subtitles_ ? kStrongSubtitlePriority : kSubtitlePriority, [&] { DrawSubtitle(batch, canvas); }});
-    if (!sound_captions_.empty() && !vr_hud_) {
+    // Coffee with Lisa owns its dialogue layer.  Keep the suspended hallway's
+    // queued subtitles and sound captions from being rendered underneath it.
+    if (!lisa_date_) layers.push_back({strong_subtitles_ ? kStrongSubtitlePriority : kSubtitlePriority, [&] { DrawSubtitle(batch, canvas); }});
+    if (!lisa_date_ && !sound_captions_.empty() && !vr_hud_) {
         layers.push_back({strong_subtitles_ ? kStrongSubtitlePriority : kSubtitlePriority, [&] { DrawSoundCaptions(batch, canvas, full); }});
     }
     if (lisa_vignette_ > 0.0f && !vr_hud_) {

@@ -514,18 +514,23 @@ if(MSVC)
 endif()
 
 target_compile_definitions(pt_engine PUBLIC PT_FONT_DIR="${CMAKE_SOURCE_DIR}/assets/fonts")
-add_custom_command(TARGET pt POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/assets/fonts" "$<TARGET_FILE_DIR:pt>/fonts")
+foreach(game_target pt pt_release)
+  add_custom_command(TARGET ${game_target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/assets/fonts" "$<TARGET_FILE_DIR:${game_target}>/fonts")
+endforeach()
 # Coffee with Lisa (src/game/lisa_date): its script, text, placeholder art and music beside the game
 target_compile_definitions(pt_engine PUBLIC PT_LISA_DATE_DIR="${CMAKE_SOURCE_DIR}/assets/lisa_date")
 # copied on every build (a text or picture change alone relinks nothing)
 add_custom_target(pt_lisa_date_assets ALL COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/assets/lisa_date" "${CMAKE_BINARY_DIR}/lisa_date")
 add_dependencies(pt pt_lisa_date_assets)
+add_dependencies(pt_release pt_lisa_date_assets)
 # the bundled fonts' SIL OFL notices also go to licenses/, beside the SDK notices
 file(GLOB PT_FONT_LICENSES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/assets/fonts/OFL-*.txt")
 foreach(license ${PT_FONT_LICENSES})
   get_filename_component(license_name "${license}" NAME)
-  add_custom_command(TARGET pt POST_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:pt>/licenses"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${license}" "$<TARGET_FILE_DIR:pt>/licenses/${license_name}" VERBATIM)
+  foreach(game_target pt pt_release)
+    add_custom_command(TARGET ${game_target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${game_target}>/licenses"
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different "${license}" "$<TARGET_FILE_DIR:${game_target}>/licenses/${license_name}" VERBATIM)
+  endforeach()
 endforeach()
 
 add_executable(pt_mouse_render_test tests/mouse_render_test.cpp)

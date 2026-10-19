@@ -67,7 +67,7 @@ inline constexpr Text kMenu[] = {
     {"pc_street_question","거리를 탐색할까요?"},
     {"pc_street_walk","예, 거리를 걷습니다."},
     {"pc_credit_version","LoreanXavier의 P.T. PC 포트 {1}"},
-    {"pc_update_available","새 버전 {1} 게시됨 (현재 {2})"},
+    {"pc_update_available","새 버전 {1} 게시됨 (현재 {2})"}, {"pc_update_title","업데이트 가능"}, {"pc_update_question","버전 {1}을 사용할 수 있습니다(현재 {2}). 지금 게임을 업데이트할까요?"}, {"pc_update_yes","예, 지금 업데이트"}, {"pc_update_no","나중에"}, {"pc_note_update_later","현재 버전으로 계속 플레이합니다. PC 설정 맨 아래의 게임 업데이트 버튼으로 언제든 설치할 수 있습니다."},
     {"pc_credits_by","제작: LoreanXavier"},
     {"pc_credits_dlss","이 게임은 NVIDIA DLSS를 사용합니다."},
     {"pc_credits_licenses","라이선스 전문은 pt.exe와 같은 위치에 있는 licenses 폴더에서 확인할 수 있습니다."},
@@ -513,6 +513,12 @@ inline constexpr Text kMenu[] = {
     {"pc_note_vsync_metalfx","MetalFX 프레임 생성은 디스플레이의 주사율에 맞춰 생성 프레임을 표시하므로 켜져 있는 동안 수직 동기화가 작동합니다."},
     {"pc_mic_st_loading","불러오는 중..."}, {"pc_mic_st_nomic","마이크 없음"}, {"pc_mic_st_files","음성 파일 없음"}, {"pc_mic_st_runtime","음성 엔진 오류"}, {"pc_mic_st_cpu","지원되지 않는 CPU"}, {"pc_mic_st_model","음성 모델 오류"}, {"pc_mic_st_silent","소리 없음"},
     {"pc_mic_err_files","음성 인식 파일이 없습니다. 게임을 다시 설치하거나 복구하세요."}, {"pc_mic_err_runtime","음성 엔진을 불러올 수 없습니다. 원인은 pt.log에서 확인하세요."}, {"pc_mic_err_cpu","이 프로세서는 음성 엔진을 실행할 수 없습니다."}, {"pc_mic_err_model","음성 모델을 불러올 수 없습니다. 원인은 pt.log에서 확인하세요."}, {"pc_mic_err_silent","마이크는 연결됐지만 입력 소리가 감지되지 않습니다. 음소거되어 있지 않은지와 올바른 장치가 선택됐는지 확인하세요."},
+    {"pc_dlssg_multiplier","DLSS 배율"}, {"pc_note_dlssg_multiplier","2배, 3배 또는 4배: 렌더링 프레임 하나당 표시되는 전체 프레임 수입니다. 높은 배율에는 런타임 지원이 필요합니다. 메뉴에서는 프레임 생성이 일시 중지됩니다."}, {"pc_note_dlssg_multiplier_limit","현재 GPU와 프레임 생성 런타임에서는 이 배율을 사용할 수 없습니다."},
+    {"pc_fps_counter","FPS 표시"}, {"pc_note_fps_counter","오른쪽 위에 프레임 속도를 표시합니다. 프레임 생성 중에는 렌더링 프레임과 표시 프레임을 함께 표시합니다. 예: 30/60. 원본에는 없는 기능입니다."},
+    {"pc_fsr_ray_regeneration","FSR 레이 재생성"}, {"pc_note_fsr_rr","AMD FSR 레이 재생성은 FSR 4 업스케일링 전에 패스 트레이싱 조명을 노이즈 제거합니다. 끄면 포트의 노이즈 제거기를 사용합니다. 지원되는 Radeon RX 9000 GPU, DirectX 12 및 Windows 11이 필요합니다."},
+    {"pc_neural_model","뉴럴 모델"}, {"pc_nr_model_small","새 모델(소형)"}, {"pc_nr_model_large","이전 모델(대형)"}, {"pc_note_neural_model","새 모델(소형)은 더 빠르고, 이전 모델(대형)은 더 세밀한 부분을 복원합니다. 모델과 품질은 서로 독립적입니다."},
+    {"pc_neural_quality","뉴럴 품질"}, {"pc_note_neural_quality","성능은 속도를 우선하고, 품질은 렌더링 해상도를, 울트라는 출력 해상도를 사용합니다. 모든 모드는 매 프레임을 처리합니다."},
+    {"pc_note_nr_native_failed","기본 DLSS 5 작업에 실패했습니다. 세부 정보와 선택한 런타임은 pt.log에서 확인하세요."}, {"pc_note_nr_needs_dlss","DLSS 5는 DLSS 업스케일러에서 실행됩니다. 먼저 업스케일러를 DLSS로 설정하세요."}, {"pc_note_nr_unlock_space","DLSS 5 설치에 필요한 여유 디스크 공간이 부족합니다. 설치 중에는 약 700MB가 필요합니다."}, {"pc_note_fg_unlock_d3d12","프레임 생성 잠금 해제에는 DirectX 12가 필요합니다. 렌더링 API를 DirectX 12로 변경한 뒤 게임을 다시 시작하세요."},
 };
 
 inline std::string_view Menu(std::string_view key) {

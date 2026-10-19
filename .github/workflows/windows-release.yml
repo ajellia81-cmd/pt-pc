@@ -56,6 +56,10 @@ jobs:
           $env:PT_CMAKE_ARGS = '-DPT_D3D12_GAME=OFF'
           & cmd.exe /c tools\build_pt.bat release 2>&1 | Tee-Object -FilePath windows-build.log
           $code = $LASTEXITCODE
+          if ($code -eq 0) {
+            cmake --build build\release --target pt_release 2>&1 | Tee-Object -FilePath windows-build.log -Append
+            $code = $LASTEXITCODE
+          }
           if ($code -ne 0) {
             Get-Content windows-build.log | Select-String -Pattern '(: error |error C[0-9]+|CMake Error|FAILED:|fatal error)' | ForEach-Object {
               Write-Host "::error::$($_.Line)"
@@ -75,8 +79,11 @@ jobs:
       - name: Verify packaged runtime files
         shell: cmd
         run: |
+          if not exist build\release\pt_release.exe exit /b 1
+          if not exist build\release\pt_release.exe.upscalers.json exit /b 1
           if not exist build\release\lisa_date\script.txt exit /b 1
           if not exist build\release\lisa_date\text\eng.txt exit /b 1
+          if not exist build\release\lisa_date\text\kor.txt exit /b 1
           if not exist build\release\lisa_date\music.ogg exit /b 1
           if not exist build\release\texture-tools\realesrgan-ncnn-vulkan.exe exit /b 1
           if not exist build\release\pt-updater.exe exit /b 1
@@ -85,7 +92,7 @@ jobs:
         shell: cmd
         run: |
           if exist artifacts rmdir /s /q artifacts
-          python tools\package.py --build build\release --out artifacts
+          python tools\package.py --build build\release --out artifacts --exe build\release\pt_release.exe
 
       - name: Upload portable runtime
         if: success()

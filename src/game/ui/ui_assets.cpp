@@ -260,10 +260,13 @@ UiFont* UiAssets::FontCovering(UiFontType type, int language, std::string_view t
     auto data = vfs_->ReadFile(kFontFiles[file_index]);
     std::string error;
     const char* family = language == 8 || language == kJapanese ? "Noto Sans SC"
+                         : language == 14                        ? "Noto Sans KR"
                          : language == 9                         ? (type == UiFontType::Movie ? "Noto Naskh Arabic" : "Noto Kufi Arabic")
                                                                  : "Noto Sans";
+    const int weight = language == 14 ? (type == UiFontType::Movie ? 300 : 500) : 400;
     if (!data || !made->font.Parse(*data, &error) ||
-        !made->font.LoadUnicodeFont(family, localized::Characters(language) + std::string(text), language == 9, &error)) {
+        !made->font.LoadUnicodeFont(family, localized::Characters(language) + std::string(text), language == 9, &error, weight,
+                                    language == 14 && type == UiFontType::Movie)) {
         LogError("ui: a font covering the text in language {} ({}): {}", language, family, error);
         covering_fonts_[key] = nullptr;
         return base;
