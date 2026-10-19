@@ -5,6 +5,8 @@
 #include <memory>
 #include <vector>
 
+#include "engine/audio/spatial_audio.h"
+
 struct SDL_AudioStream;
 
 namespace pt::audio {
@@ -14,15 +16,17 @@ class SpatialOutput;
 class AudioOutput {
 public:
     static void SetPreferSpatial(bool prefer) { prefer_spatial_ = prefer; }
+    static void SetPreferObjectSpatial(bool prefer) { prefer_object_spatial_ = prefer; }
 
     using RenderFunction = std::function<void(float* interleaved, uint32_t frames, uint32_t channels)>;
+    using SpatialRenderFunction = std::function<void(float* interleaved, uint32_t frames, uint32_t channels, SpatialAudioSink* sink)>;
 
     AudioOutput();
     ~AudioOutput();
     AudioOutput(const AudioOutput&) = delete;
     AudioOutput& operator=(const AudioOutput&) = delete;
 
-    bool Open(uint32_t sample_rate, bool surround, RenderFunction render);
+    bool Open(uint32_t sample_rate, bool surround, RenderFunction render, SpatialRenderFunction spatial_render = {});
     void Close();
     bool IsOpen() const { return stream_ != nullptr || spatial_ != nullptr; }
     uint32_t Channels() const { return channels_; }
@@ -37,6 +41,7 @@ private:
     uint32_t channels_ = 2;
     std::unique_ptr<SpatialOutput> spatial_;
     static inline bool prefer_spatial_ = false;
+    static inline bool prefer_object_spatial_ = false;
 };
 
 }

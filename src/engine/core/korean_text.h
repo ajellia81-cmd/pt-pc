@@ -426,6 +426,7 @@ inline constexpr Text kMenu[] = {
     {"pc_hdr_peak_auto","자동"},
     {"pc_surround","서라운드 출력"}, {"pc_note_surround","게임을 다시 시작하면 출력 장치의 5.1 또는 7.1 채널 구성을 사용합니다. 스테레오 장치는 스테레오로 유지됩니다."},
     {"pc_surround_spatial","Windows 공간 음향"}, {"pc_note_surround_spatial","게임을 다시 시작하면 Windows Sonic, Dolby Atmos 또는 DTS:X를 통해 7.1 믹스를 출력합니다. Windows 사운드 설정에서 공간 음향을 켜세요. 사용할 수 없으면 5.1/7.1 또는 스테레오로 출력됩니다."},
+    {"pc_dolby_atmos","홈 시어터용 Dolby Atmos"}, {"pc_note_dolby_atmos","게임을 다시 시작하면 Windows 공간 음향의 동적 객체를 사용합니다. Windows에서 홈 시어터용 Dolby Atmos를 켜세요. 사용할 수 없으면 일반 스테레오/5.1/7.1 출력으로 전환됩니다."},
     {"pc_game_plus","게임+"}, {"pc_note_game_plus","원본에는 없는 기능입니다. 켜면 완료한 게임에서 해제한 게임+ 콘텐츠를 사용합니다. 끄면 모든 플레이가 원본 게임으로 진행되며 완료 기록은 유지됩니다. 다음 루프부터 적용됩니다."},
     {"pc_rendering_api","렌더링 API"}, {"pc_note_rendering_api","DirectX 12 또는 Vulkan을 사용합니다. 다음에 게임을 시작할 때 적용됩니다."},
     {"pc_rendering_api_prompt","게임에서 사용할 그래픽 API를 선택하세요. 나중에 설정에서 변경할 수 있습니다."},

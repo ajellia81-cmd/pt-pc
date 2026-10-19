@@ -3192,9 +3192,40 @@ uint32_t SoundEngine::RenderVoice(Voice& v, uint32_t offset, uint32_t frames) {
         v.sc_dry_prev = v.dry_gain;
         v.gain_init = true;
     }
+    // Submit the authored dry signal as a Windows dynamic object before the legacy speaker matrix folds it.
+    // Effects and non-positional voices remain in the normal 7.1 bed.
+    BusRuntime* bus = Bus(v.bus_id);
+    const float spatial_chain0 = bus ? bus->chain_prev : 1.0f;
+    const float spatial_chain1 = bus ? bus->chain : 1.0f;
+    bool routed_to_spatial = false;
+    const bool positional_voice = v.node && v.node->positioning && v.node->positioning->has_3d;
+    const bool dynamic_candidate = spatial_sink_ && positional_voice && v.node->positioning->spatialized && v.channels <= 2;
+    if (dynamic_candidate) {
+        const float normalization = v.mix_l[0] + v.mix_r[0];
+        if (v.channels == 2 || normalization > 1e-6f) {
+            spatial_mono_.resize(produced);
+            const auto object = objects_.find(v.object);
+            static const ObjectState kEmptyObject;
+            const ObjectState& state = object == objects_.end() ? kEmptyObject : object->second;
+            const glm::vec3 relative = EmitterPosition(v, state) - listener_position_;
+            const glm::vec3 position(glm::dot(relative, listener_right_), glm::dot(relative, listener_up_),
+                                     -glm::dot(relative, listener_forward_));
+            for (uint32_t i = 0; i < produced; ++i) {
+                const float w = (static_cast<float>(i) + 1.0f) / static_cast<float>(produced);
+                const float fade = fade0 + (fade1 - fade0) * w;
+                const float chain = spatial_chain0 + (spatial_chain1 - spatial_chain0) *
+                                                          (static_cast<float>(offset + i) + 1.0f) /
+                                                          static_cast<float>(frames);
+                const float gain = (v.sc_dry_prev + (v.dry_gain - v.sc_dry_prev) * w) * fade * chain;
+                const float mono = v.channels == 1 ? (out_l[i] + out_r[i]) / normalization
+                                                   : 0.5f * (sc_voice_[0][i] + sc_voice_[1][i]);
+                spatial_mono_[i] = std::clamp(mono * gain * master_gain_, -1.0f, 1.0f);
+            }
+            routed_to_spatial = spatial_sink_->SubmitMono(v.serial, spatial_render_offset_ + offset, spatial_mono_, position);
+        }
+    }
     const float inv = 1.0f / static_cast<float>(produced);
     const float block_inv = 1.0f / static_cast<float>(frames);
-    BusRuntime* bus = Bus(v.bus_id);
     if (controller_pcm_capture_.HasSelectedEvents()) {
         const auto record = playing_.find(v.playing_id);
         if (record != playing_.end()) {
@@ -3245,9 +3276,9 @@ uint32_t SoundEngine::RenderVoice(Voice& v, uint32_t offset, uint32_t frames) {
             }
         }
     };
-    mix(bus, v.gain_prev, target, v.sc_mode == 0);
+    if (!routed_to_spatial) mix(bus, v.gain_prev, target, v.sc_mode == 0);
     std::copy(target, target + 4, v.gain_prev);
-    if (bus && bus->sc_direct && v.sc_mode != 0 && (v.sc_dry_prev != 0.0f || v.dry_gain != 0.0f)) {
+    if (!routed_to_spatial && bus && bus->sc_direct && v.sc_mode != 0 && (v.sc_dry_prev != 0.0f || v.dry_gain != 0.0f)) {
         float* weight = sc_weight_.data();
         for (uint32_t i = 0; i < produced; ++i) {
             const float w = (static_cast<float>(i) + 1.0f) * inv;
@@ -3663,9 +3694,11 @@ void SoundEngine::Render(float* out, uint32_t frames, uint32_t output_channels) 
     uint32_t done = 0;
     while (done < frames) {
         const uint32_t n = std::min(kBlockFrames, frames - done);
+        spatial_render_offset_ = done;
         RenderBlock(out + static_cast<size_t>(done) * output_channels, n, output_channels);
         done += n;
     }
+    spatial_render_offset_ = 0;
     if (!global_pause_) {
         rendered_frames_.fetch_add(frames);
     }
@@ -3709,6 +3742,12 @@ void SoundEngine::Render(float* out, uint32_t frames, uint32_t output_channels) 
 #else
     _mm_setcsr(csr);
 #endif
+}
+
+void SoundEngine::RenderWithSpatialSink(float* out, uint32_t frames, uint32_t channels, SpatialAudioSink* sink) {
+    spatial_sink_ = sink;
+    Render(out, frames, channels);
+    spatial_sink_ = nullptr;
 }
 
 }
