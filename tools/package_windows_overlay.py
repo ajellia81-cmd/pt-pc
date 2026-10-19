@@ -28,6 +28,21 @@ def copy_tree(source: Path, destination: Path) -> None:
         shutil.copytree(source, destination, dirs_exist_ok=True)
 
 
+def require_baseline_features(files: set[str]) -> None:
+    """Fail loudly if this is not the complete DX12/DLSS 5-capable upstream runtime."""
+    required = {
+        "D3D12/D3D12Core.dll",
+        "pt-native-nvngx.dll",
+        "nvngx_dlss.dll",
+        "nvngx_dlssd.dll",
+        "nvngx_dlssg.dll",
+        "shaders/forward.frag.dxil",
+    }
+    missing = required - files
+    if missing:
+        raise RuntimeError("baseline lacks required original DX12/DLSS 5 files: " + ", ".join(sorted(missing)))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--baseline", type=Path, required=True)
@@ -53,6 +68,7 @@ def main() -> None:
             for path in runtime.rglob("*")
             if path.is_file()
         }
+        require_baseline_features(baseline_files)
 
         shutil.copy2(exe, runtime / "pt.exe")
         for sidecar in ("pt_release.exe.upscalers.json",):

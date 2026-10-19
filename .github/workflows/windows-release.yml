@@ -63,7 +63,7 @@ jobs:
       - name: Run audio and settings checks
         shell: cmd
         run: |
-          cmake --build build\release --target pt_audio_channel_layout_test pt_settings_roundtrip_test pt_korean_text_layout_test
+          cmake --build build\release --target pt_audio_channel_layout_test pt_settings_roundtrip_test pt_korean_text_layout_test pt_d3d12_backend_test
           build\release\pt_audio_channel_layout_test.exe
           mkdir build\release\test-output
           build\release\pt_settings_roundtrip_test.exe build\release\test-output
@@ -85,6 +85,10 @@ jobs:
           $ErrorActionPreference = 'Stop'
           Invoke-WebRequest -Uri 'https://github.com/LoreanXavier/pt-pc/releases/download/v1.0.6/P.T.PC.Port-portable-windows.zip' -OutFile baseline-windows.zip
           if ((Get-Item baseline-windows.zip).Length -lt 400MB) { throw 'The 1.0.6 baseline download is incomplete' }
+          $entries = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path baseline-windows.zip)).Entries.FullName
+          foreach ($entry in @('D3D12/D3D12Core.dll', 'pt-native-nvngx.dll', 'nvngx_dlss.dll', 'nvngx_dlssd.dll', 'nvngx_dlssg.dll', 'shaders/forward.frag.dxil')) {
+            if (-not ($entries | Where-Object { $_ -like "*/$entry" })) { throw "The upstream 1.0.6 baseline is missing $entry" }
+          }
 
       - name: Assemble localized runtime without dropping original files
         shell: pwsh
