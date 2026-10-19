@@ -79,14 +79,12 @@ jobs:
       - name: Verify packaged runtime files
         shell: cmd
         run: |
-          if not exist build\release\pt_release.exe exit /b 1
-          if not exist build\release\pt_release.exe.upscalers.json exit /b 1
-          if not exist build\release\lisa_date\script.txt exit /b 1
-          if not exist build\release\lisa_date\text\eng.txt exit /b 1
-          if not exist build\release\lisa_date\text\kor.txt exit /b 1
-          if not exist build\release\lisa_date\music.ogg exit /b 1
-          if not exist build\release\texture-tools\realesrgan-ncnn-vulkan.exe exit /b 1
-          if not exist build\release\pt-updater.exe exit /b 1
+          for %%F in (build\release\pt_release.exe build\release\pt_release.exe.upscalers.json build\release\lisa_date\script.txt build\release\lisa_date\text\eng.txt build\release\lisa_date\text\kor.txt build\release\lisa_date\music.ogg build\release\texture-tools\realesrgan-ncnn-vulkan.exe build\release\pt-updater.exe) do (
+            if not exist "%%F" (
+              echo Missing packaged runtime file: %%F
+              exit /b 1
+            )
+          )
 
       - name: Assemble portable runtime
         shell: cmd
