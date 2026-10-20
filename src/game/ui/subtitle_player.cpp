@@ -7,6 +7,7 @@
 #include <format>
 
 #include "engine/core/log.h"
+#include "engine/core/korean_text.h"
 #include "engine/fs/vfs.h"
 
 namespace pt::game {
@@ -54,6 +55,20 @@ std::string Cp1252ToUtf8(std::string_view text) {
         }
     }
     return out;
+}
+
+// SubtitleTable normally replaces English lines while it loads the selected
+// language.  Keep a display-time Korean lookup too: it is deliberately
+// independent of package parsing so an older or modded English subtitle
+// package cannot silently turn a Korean selection back into English.
+std::string KoreanLine(uint32_t key, size_t line, std::string_view fallback) {
+    for (const korean::Subtitle& subtitle : korean::kSubtitles) {
+        if (subtitle.key != key || line >= subtitle.lines.size()) continue;
+        std::string text(subtitle.lines.begin()[line]);
+        std::replace(text.begin(), text.end(), '|', '\n');
+        return text;
+    }
+    return std::string(fallback);
 }
 
 }
@@ -233,11 +248,13 @@ bool SubtitlePlayer::Current(std::string_view hidden_id, SubtitleView& out) cons
     if (!entry) {
         return false;
     }
-    for (const audio::SubtitleLine& line : entry->lines) {
+    for (size_t index = 0; index < entry->lines.size(); ++index) {
+        const audio::SubtitleLine& line = entry->lines[index];
         if (best->time >= line.start_seconds && best->time < line.end_seconds) {
             out.key = best->key;
             out.id = best->id;
-            out.text = ValidUtf8(line.text) ? line.text : Cp1252ToUtf8(line.text);
+            const std::string text = ValidUtf8(line.text) ? line.text : Cp1252ToUtf8(line.text);
+            out.text = language_ == 14 ? KoreanLine(best->key, index, text) : text;
             out.category = entry->category;
             return !out.text.empty();
         }
