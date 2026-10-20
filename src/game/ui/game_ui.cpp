@@ -527,8 +527,13 @@ void GameUi::DrawSubtitle(ui::UiBatch& batch, const UiCanvas& canvas) {
         return;
     }
     const int language = subtitles_.Language();
-    UiFont* font = assets_.Font(UiFontType::Movie, language);
+    // The base Korean atlas is prepared before play.  Asking for coverage here
+    // is normally a no-op, but guarantees that a newly added subtitle line
+    // cannot become invisible if its glyph was not part of that initial atlas.
+    UiFont* font = assets_.FontCovering(UiFontType::Movie, language, view.text);
     if (!font) {
+        LogWarn("ui: subtitle {} is ready but the {} movie font is unavailable", view.id,
+                language == 14 ? "Korean" : "selected");
         return;
     }
     const SubtitleGeneratorSettings& generator = assets_.Generator();
