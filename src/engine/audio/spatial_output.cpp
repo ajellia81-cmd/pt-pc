@@ -47,6 +47,8 @@ struct SpatialOutput::Impl {
     struct DynamicSlot { ComPtr<ISpatialAudioObject> object; float* buffer = nullptr; UINT32 samples = 0; };
     std::vector<DynamicSlot> dynamic;
     std::unordered_map<uint32_t, size_t> dynamic_voices;
+    UINT32 max_dynamic = 0;
+    bool dynamic_activation_reported = false;
 
     bool Submit(uint32_t voice_id, uint32_t offset, std::span<const float> mono, const glm::vec3& position) {
         if (dynamic.empty() || offset >= mix.size() / kBed.size()) return false;
@@ -72,6 +74,27 @@ struct SpatialOutput::Impl {
             UINT32 available = 0, frames = 0;
             if (FAILED(stream->BeginUpdatingAudioObjects(&available, &frames))) continue;
             if (frames > 0) {
+                // Dynamic objects are deliberately activated inside an update
+                // period.  Windows rejects or ignores dynamic-object activation
+                // before BeginUpdatingAudioObjects on several Atmos endpoints.
+                const size_t dynamic_target = std::min<size_t>(max_dynamic, dynamic.size() + available);
+                while (dynamic.size() < dynamic_target) {
+                    DynamicSlot slot;
+                    const HRESULT hr = stream->ActivateSpatialAudioObject(AudioObjectType_Dynamic, &slot.object);
+                    if (FAILED(hr)) {
+                        if (!dynamic_activation_reported) {
+                            LogWarn("audio: spatial sound: could not activate dynamic objects ({:#x}); 7.1 bed remains active",
+                                    static_cast<uint32_t>(hr));
+                            dynamic_activation_reported = true;
+                        }
+                        break;
+                    }
+                    dynamic.push_back(std::move(slot));
+                }
+                if (!dynamic.empty() && !dynamic_activation_reported) {
+                    LogInfo("audio: spatial sound: {} dynamic objects activated for object rendering", dynamic.size());
+                    dynamic_activation_reported = true;
+                }
                 mix.assign(static_cast<size_t>(frames) * kBed.size(), 0.0f);
                 dynamic_voices.clear();
                 for (auto& object : dynamic) {
@@ -162,15 +185,16 @@ bool SpatialOutput::Open(uint32_t sample_rate, RenderFunction render, SpatialRen
     SpatialAudioObjectRenderStreamActivationParams params{};
     params.ObjectFormat = &format;
     params.StaticObjectTypeMask = mask;
-    UINT32 max_dynamic = 0;
-    if (spatial_render && SUCCEEDED(s.client->GetMaxDynamicObjectCount(&max_dynamic))) max_dynamic = std::min<UINT32>(max_dynamic, 32);
-    if (spatial_render && max_dynamic == 0) {
+    if (spatial_render && SUCCEEDED(s.client->GetMaxDynamicObjectCount(&s.max_dynamic))) s.max_dynamic = std::min<UINT32>(s.max_dynamic, 32);
+    if (spatial_render && s.max_dynamic == 0) {
         LogInfo("audio: spatial sound: this endpoint has no dynamic objects; using ordinary playback");
         Close();
         return false;
     }
-    params.MinDynamicObjectCount = 0;
-    params.MaxDynamicObjectCount = max_dynamic;
+    // Request at least one object.  A zero minimum can create a valid stream
+    // that is allowed to provide only the static 7.1 bed.
+    params.MinDynamicObjectCount = spatial_render ? 1 : 0;
+    params.MaxDynamicObjectCount = s.max_dynamic;
     params.Category = AudioCategory_GameEffects;
     params.EventHandle = s.event;
     PROPVARIANT activation;
@@ -189,16 +213,6 @@ bool SpatialOutput::Open(uint32_t sample_rate, RenderFunction render, SpatialRen
         if (!(mask & kBed[c])) continue;
         if (SUCCEEDED(s.stream->ActivateSpatialAudioObject(kBed[c], &s.objects[c]))) ++active;
     }
-    for (UINT32 i = 0; i < max_dynamic; ++i) {
-        Impl::DynamicSlot slot;
-        if (FAILED(s.stream->ActivateSpatialAudioObject(AudioObjectType_Dynamic, &slot.object))) break;
-        s.dynamic.push_back(std::move(slot));
-    }
-    if (spatial_render && s.dynamic.empty()) {
-        LogInfo("audio: spatial sound: dynamic objects could not be activated; using ordinary playback");
-        Close();
-        return false;
-    }
     if (active != static_cast<int>(kBed.size()) || FAILED(s.stream->Start())) {
         LogWarn("audio: spatial sound: the full 7.1 bed could not start, using ordinary playback");
         Close();
@@ -209,7 +223,7 @@ bool SpatialOutput::Open(uint32_t sample_rate, RenderFunction render, SpatialRen
     s.owner = this;
     s.running = true;
     s.thread = std::thread([&s] { s.Run(); });
-    LogInfo("audio: playback through Windows spatial sound at {} Hz, a bed of {} static objects and {} dynamic objects", sample_rate, active, s.dynamic.size());
+    LogInfo("audio: playback through Windows spatial sound at {} Hz, a bed of {} static objects and up to {} dynamic objects", sample_rate, active, s.max_dynamic);
     return true;
 }
 
@@ -223,6 +237,8 @@ void SpatialOutput::Close() {
     for (auto& o : s.objects) o.Reset();
     s.dynamic.clear();
     s.dynamic_voices.clear();
+    s.max_dynamic = 0;
+    s.dynamic_activation_reported = false;
     s.stream.Reset();
     s.client.Reset();
     if (s.event) CloseHandle(s.event);

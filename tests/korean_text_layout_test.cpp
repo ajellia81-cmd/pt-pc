@@ -45,6 +45,14 @@ int main() {
     pc.font = &font;
     pc.font_width = pc.font_height = 20.0f;
     int failures = 0;
+    // Keep newly introduced upstream PC-settings rows from silently falling
+    // back to English when the port is updated.
+    for (const char* key : {"pc_photo_reset_settings", "pc_note_photo_reset_settings"}) {
+        if (pt::korean::Menu(key).empty()) {
+            std::printf("FAIL: missing Korean PC-settings text: %s\n", key);
+            ++failures;
+        }
+    }
     for (const pt::korean::Text& entry : pt::korean::kMenu) {
         if (!HasAllGlyphs(font, entry.text)) {
             std::printf("FAIL: missing Korean glyphs in %.*s\n", int(entry.key.size()), entry.key.data());
