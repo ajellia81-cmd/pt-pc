@@ -68,6 +68,7 @@ float SubtitlePlayer::RangeRadius(int range) {
 
 void SubtitlePlayer::SetLanguage(int language) {
     language_ = std::clamp(language, 0, kLanguageCount - 1);
+    LogInfo("ui: subtitles selected {} (index {})", kSubtitleLanguages[language_], language_);
     Table(language_);
 }
 
