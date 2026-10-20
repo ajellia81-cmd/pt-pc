@@ -10,7 +10,9 @@
 #include <utility>
 
 #ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
 #include <windows.h>
 #endif
 
@@ -52,7 +54,7 @@ LRESULT CALLBACK RenderingApiDialogProc(HWND window, UINT message, WPARAM wparam
         if (!dialog) return -1;
         dialog->font = static_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT));
         const HWND icon = CreateWindowW(L"STATIC", nullptr, WS_CHILD | WS_VISIBLE | SS_ICON, 24, 29, 40, 40, window, nullptr, nullptr, nullptr);
-        SendMessageW(icon, STM_SETICON, reinterpret_cast<WPARAM>(LoadIconW(nullptr, IDI_INFORMATION)), 0);
+        SendMessageW(icon, STM_SETICON, reinterpret_cast<WPARAM>(LoadIconW(nullptr, MAKEINTRESOURCEW(32516))), 0);
         const HWND text = CreateWindowW(L"STATIC", dialog->message.c_str(), WS_CHILD | WS_VISIBLE | SS_LEFT, 82, 22, 500, 58, window, nullptr, nullptr, nullptr);
         const HWND directx = CreateWindowW(L"BUTTON", L"DirectX 12", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
                                             272, 98, 142, 30, window, reinterpret_cast<HMENU>(kDirectXButton), nullptr, nullptr);
@@ -86,8 +88,8 @@ AskAnswer AskRenderingApiWindows(std::string_view title, std::string_view messag
     WNDCLASSW window_class{};
     window_class.lpfnWndProc = RenderingApiDialogProc;
     window_class.hInstance = instance;
-    window_class.hCursor = LoadCursorW(nullptr, IDC_ARROW);
-    window_class.hIcon = LoadIconW(nullptr, IDI_INFORMATION);
+    window_class.hCursor = LoadCursorW(nullptr, MAKEINTRESOURCEW(32512));
+    window_class.hIcon = LoadIconW(nullptr, MAKEINTRESOURCEW(32516));
     window_class.lpszClassName = kClassName;
     if (!RegisterClassW(&window_class) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) return AskAnswer::NotShown;
 
