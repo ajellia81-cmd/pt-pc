@@ -827,12 +827,31 @@ void SceneRenderer::PrepareFrame(const Camera& camera, const std::vector<DrawIte
                             ShadowLegacy() ? 0.0f : l.view_bias);
         g.cone = spot ? glm::vec4(l.cos_outer, l.inv_cone_range, l.cone_exponent, l.dimmer) : glm::vec4(0.0f, 0.0f, 0.0f, -1.0f);
         g.shadow_cone = glm::vec4(l.shadow_cos_outer, l.shadow_inv_cone_range, 0.0f, 0.0f);
-        const uint32_t flags = (l.cast_shadow ? gpu::kLightCastsShadow : 0u) | (l.id == kHandyLightId ? gpu::kLightNoFitting : 0u);
+        const SceneLight* stair_area = nullptr;
+        if (rt_path_ && l.path_stair_ceiling && !l.masked) {
+            for (const SceneLight& area : lighting.lights) {
+                if (area.stair_area && area.has_area &&
+                    (!stair_area || glm::distance(area.position, l.position) < glm::distance(stair_area->position, l.position))) {
+                    stair_area = &area;
+                }
+            }
+        }
+        const bool stair_ceiling = stair_area != nullptr;
+        static bool stair_ceiling_logged = false;
+        if (stair_ceiling && !stair_ceiling_logged) {
+            LogInfo("path lighting: chandelier stair-ceiling shadow exclusion active");
+            stair_ceiling_logged = true;
+        }
+        const uint32_t flags = (l.cast_shadow ? gpu::kLightCastsShadow : 0u) | (l.id == kHandyLightId ? gpu::kLightNoFitting : 0u) |
+                               (stair_ceiling ? gpu::kLightStairCeiling : 0u);
         g.scales = glm::vec4(l.specular_scale * lod.x, l.diffuse_scale * lod.y, l.shadow_strength * lod.z, static_cast<float>(flags));
         const bool own_mask = l.masked && l.mask_texture >= 0;
         g.info = glm::ivec4(-1, l.masked && !own_mask ? static_cast<int>(gpu::kResMask) : -1,
                             l.has_area ? static_cast<int>(l.area_clip_mode) : 0, own_mask ? l.mask_texture + 1 : 0);
         g.area = l.has_area ? l.area_to_box : glm::mat4(0.0f);
+        if (stair_ceiling) {
+            g.mask = stair_area->area_to_box;
+        }
         if (l.masked) {
             const glm::vec3 dir = glm::normalize(l.direction);
             const glm::vec3 up = std::abs(glm::dot(dir, glm::normalize(l.up))) < 0.95f ? glm::normalize(l.up) : AnyPerpendicular(dir);
@@ -1120,9 +1139,8 @@ void SceneRenderer::BuildShadowViews(const SceneLighting& lighting, const glm::v
             g.shadow = glm::translate(glm::mat4(1.0f), glm::vec3(half_texel, half_texel, 0.0f)) * v.view_projection;
             g.shadow_rect = glm::vec4(tx * tile_uv, ty * tile_uv, tile_uv, tile_uv);
         } else {
-            const float n = static_cast<float>(shadow_tile);
             const float r = src->outer_range;
-            const float k = r * n / (n - 2.0f);
+            const float k = PointShadowRange(r);
             const glm::mat4 light_space = PointShadowView(pos);
             for (int side = 0; side < 2; ++side) {
                 gpu::View& v = frame_->views[view_count_];
@@ -1130,7 +1148,7 @@ void SceneRenderer::BuildShadowViews(const SceneLighting& lighting, const glm::v
                 v.view = light_space;
                 v.projection_param = glm::vec4(1.0f, 1.0f, 0.05f, 2.0f);
                 v.eye = glm::vec4(pos, side == 0 ? -1.0f : 1.0f);
-                v.shadow = glm::vec4(1.0f / k, 0.0f, 0.0f, 0.0f);
+                v.shadow = glm::vec4(1.0f / k, r - k, 0.0f, 0.0f);
                 ShadowView sv;
                 sv.view = view_count_++;
                 sv.light = c.light;
@@ -1141,7 +1159,7 @@ void SceneRenderer::BuildShadowViews(const SceneLighting& lighting, const glm::v
                 sv.frustum = false;
                 sv.bias_constant = ShadowLegacy() ? -1.5f : 0.0f;
                 sv.bias_slope = ShadowLegacy() ? -2.0f : 0.0f;
-                sv.cull = side == 0 ? gpu::CullMode::Front : gpu::CullMode::Back;
+                sv.cull = PointShadowCullFront(side != 0) ? gpu::CullMode::Front : gpu::CullMode::Back;
                 shadow_views_.push_back(sv);
             }
             g.shadow = light_space;
@@ -2634,6 +2652,7 @@ void SceneRenderer::SettleExposure(const ExposureSettings& settings) {
     gpu_->InvalidateMapped(slot.luminance, 0, ~0ull);
     const float measured = MeterLuminance(static_cast<const glm::vec2*>(slot.luminance.mapped), slot.luminance_groups);
     adaptation_valid_ = true;
+    exposure_samples_.clear();
     if (measured < 0.0f) {
         return;
     }
@@ -3013,6 +3032,7 @@ void SceneRenderer::Render(const Camera& camera, const std::vector<DrawItem>& it
     slot.timed = true;
     slot.measured = true;
     slot.exposure_used = exposure_;
+    slot.exposure_sample_time = exposure_time_;
     slot.vr_eye = vr_eye_;
     stats_.ev = ev_;
     stats_.exposure = exposure_;

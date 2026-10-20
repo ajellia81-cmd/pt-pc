@@ -4,6 +4,7 @@
 
 #include <array>
 #include <chrono>
+#include <deque>
 #include <functional>
 #include <map>
 #include <memory>
@@ -278,6 +279,7 @@ private:
         bool light_timed = false;
         uint32_t luminance_groups = 0;
         float exposure_used = 1.0f;
+        double exposure_sample_time = 0.0;
         bool measured = false;
         bool timed = false;
         int vr_eye = -1;
@@ -769,6 +771,17 @@ private:
     float ev_ = 0.0f;
     double exposure_camera_dt_ = static_cast<double>(1.0f / 60.0f);
     float exposure_previous_dt_ = 0.0f;
+    bool exposure_clock_started_ = false;
+    double exposure_time_ = 0.0;
+    double exposure_updated_at_ = 0.0;
+    std::array<double, 5> exposure_tick_times_{};
+    uint32_t exposure_tick_index_ = 0;
+    double exposure_feedback_time_ = 0.0;
+    struct ExposureSample {
+        double time;
+        float luminance;
+    };
+    std::deque<ExposureSample> exposure_samples_;
     bool adaptation_valid_ = false;
     bool ev_pinned_ = false;
     float exposure_ = 1.0f;

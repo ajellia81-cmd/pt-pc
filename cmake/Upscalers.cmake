@@ -69,6 +69,7 @@ set(PT_FFX2_FILES
   "Kits/FidelityFX/api/include/ffx_api_loader.h|18d1901dbbc881e8131b91c65ad44bb3b4a1de6c31435d5b75236f16727ba80e"
   "Kits/FidelityFX/api/include/ffx_api_types.h|cc0adc0ffc804dd7cd03c39c15581b575e416383177ffe95060201d52cc0fc49"
   "Kits/FidelityFX/api/include/dx12/ffx_api_dx12.h|c9afbc3c4c673723e9e5369a666f0ff54560543b5a93537f8ff453bf1c3bf530"
+  "Kits/FidelityFX/upscalers/include/ffx_upscale.h|65be36d5653eb71c10379e0204f7bb7cd6a8aeec96e6f8cffc5f59ffeb1f89bf"
   "Kits/FidelityFX/denoisers/include/ffx_denoiser.h|bdfde56568543abe5fef75debc141f0199bc84e8733a8e151b40b4b5cda3008c"
   "Kits/FidelityFX/signedbin/amd_fidelityfx_denoiser_dx12.dll|48f1e5888ba6a0a3d59a98b9751e37c392b0f7b8c223d0082d5c1f40642879d3"
   "docs/license.md|6757f2fec461238da6f84f83536ec195e8c036b1773a06f6f34301b9ed8c0963"

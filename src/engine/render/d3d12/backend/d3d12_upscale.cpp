@@ -35,10 +35,17 @@
 #include <xess/xess_d3d12.h>
 #endif
 #if defined(PT_WITH_FSR)
+#if defined(PT_WITH_FSR_RR)
+#include <dx12/ffx_api_dx12.h>
+#include <ffx_api.h>
+#include <ffx_api_loader.h>
+#include <ffx_upscale.h>
+#else
 #include <ffx_api/dx12/ffx_api_dx12.h>
 #include <ffx_api/ffx_api.h>
 #include <ffx_api/ffx_api_loader.h>
 #include <ffx_api/ffx_upscale.h>
+#endif
 #endif
 
 namespace pt::gpu::d3d12 {
@@ -694,6 +701,13 @@ public:
         ffxCreateContextDescUpscale desc{};
         desc.header.type = FFX_API_CREATE_CONTEXT_DESC_TYPE_UPSCALE;
         desc.header.pNext = &backend.header;
+#if defined(PT_WITH_FSR_RR)
+        ffxCreateContextDescUpscaleVersion api_version{};
+        api_version.header.type = FFX_API_CREATE_CONTEXT_DESC_TYPE_UPSCALE_VERSION;
+        api_version.version = FFX_UPSCALER_VERSION;
+        api_version.header.pNext = desc.header.pNext;
+        desc.header.pNext = &api_version.header;
+#endif
         desc.flags = FFX_UPSCALE_ENABLE_HIGH_DYNAMIC_RANGE | FFX_UPSCALE_ENABLE_DEPTH_INVERTED | FFX_UPSCALE_ENABLE_DEPTH_INFINITE;
         if (std::getenv("PT_UPSCALE_CHECK")) {
             desc.flags |= FFX_UPSCALE_ENABLE_DEBUG_CHECKING;

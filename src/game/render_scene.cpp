@@ -258,6 +258,7 @@ void RenderSceneBuilder::AddLight(const fox2::DataSetFile& f, const fox2::Entity
     const std::string_view last = std::string_view(name).substr(name.rfind('|') == std::string::npos ? 0 : name.rfind('|') + 1);
     if (spot && (last == "8SL_stairs_down0000" || last == "8SL_stairs_down0002")) {
         lumen = 40.0f;
+        l.stair_area = true;
     }
     const glm::vec3 rgb = light_math::ColorFromTemperature(f.GetFloat(e, "temperature", 0, 6500.0f), f.GetFloat(e, "colorDeflection"), lumen, color);
     l.inner_range = f.GetFloat(e, "innerRange");

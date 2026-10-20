@@ -206,6 +206,10 @@ public:
         return false;
     }
     size_t ParticleCount() const;
+    bool Emitted(const InstanceKey& key) const {
+        const auto it = instances_.find(key);
+        return it != instances_.end() && it->second.emitted;
+    }
     std::vector<std::pair<std::string, size_t>> Stats() const;
 
 private:
@@ -273,6 +277,7 @@ private:
         float frame = 0.0f;
         uint32_t loop = 0;
         bool started = false;
+        bool emitted = false;
         bool finished = false;
         bool stopped = false;
         std::vector<ShapeState> shapes;

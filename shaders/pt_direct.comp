@@ -178,7 +178,7 @@ vec3 PtShadeLight(Pixel p, bool shadow) {
         if (!PtLightEval(l, p.world, -p.n, p.V, p.s, Cutoff(), d, sp)) {
             continue;
         }
-        float visibility = shadow ? PtVisibility(l, p.world - p.ng * max(0.003, 0.001 * p.z), l.position.xyz, pass.f2.y) : 1.0;
+        float visibility = shadow ? PtVisibility(l, p.world - p.ng * max(0.003, 0.001 * p.z), l.position.xyz, pass.f2.y, p.ng) : 1.0;
         sum += d * (kPtShadeTransmission * visibility);
     }
     return sum;
@@ -233,7 +233,7 @@ void InitialTemporal(ivec2 pixel, ivec2 size, Pixel p, inout uint rng) {
         vec3 target = PtDiscPoint(l, p.world, r.disc);
         vec3 side = dot(p.ng, target - p.world) >= 0.0 ? p.ng : -p.ng;
         if (!PtFillUnshadowed(uint(r.light)) &&
-            PtVisibility(l, p.world + side * max(0.003, 0.001 * p.z), target, pass.f2.y) <= 0.0) {
+            PtVisibility(l, p.world + side * max(0.003, 0.001 * p.z), target, pass.f2.y, p.ng) <= 0.0) {
             r.light = -1;
             r.w_sum = 0.0;
             r.target = 0.0;
@@ -333,7 +333,7 @@ void DirectSampled(ivec2 pixel, ivec2 size, Pixel p) {
                 }
                 vec3 side = dot(p.ng, target - p.world) >= 0.0 ? p.ng : -p.ng;
                 float visibility = PtFillUnshadowed(i) ? 1.0 :
-                    PtVisibility(l, p.world + side * max(0.003, 0.001 * p.z), target, pass.f2.y);
+                    PtVisibility(l, p.world + side * max(0.003, 0.001 * p.z), target, pass.f2.y, p.ng);
                 if (visibility > 0.0) {
                     float scale = visibility * total / (w * float(samples));
                     shadowed_d += d * scale;
@@ -400,7 +400,7 @@ void SpatialShade(ivec2 pixel, ivec2 size, Pixel p, inout uint rng) {
         vec3 target = PtDiscPoint(l, p.world, r.disc);
         vec3 side = dot(p.ng, target - p.world) >= 0.0 ? p.ng : -p.ng;
         vec3 origin = p.world + side * max(0.003, 0.001 * p.z);
-        visibility = PtFillUnshadowed(uint(r.light)) ? 1.0 : PtVisibility(l, origin, target, pass.f2.y);
+        visibility = PtFillUnshadowed(uint(r.light)) ? 1.0 : PtVisibility(l, origin, target, pass.f2.y, p.ng);
         if (visibility > 0.0) {
             shadowed_d = d * (r.W * visibility);
             shadowed_s = s * (r.W * visibility);

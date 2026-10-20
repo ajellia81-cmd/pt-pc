@@ -19,6 +19,8 @@ constexpr uint64_t kMirrorLightId = 0x4D4952524F524C54ull;
 constexpr uint64_t kHandyReflectionId = 0x5245464C45435430ull;
 
 struct SceneLight {
+    bool path_stair_ceiling = false;
+    bool stair_area = false;
     uint32_t light_fitting = 0;
     LightType type = LightType::Point;
     uint64_t id = 0;

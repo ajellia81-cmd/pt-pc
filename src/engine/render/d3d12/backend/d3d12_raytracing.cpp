@@ -175,7 +175,7 @@ bool D3D12RayTracing::Init(gpu::Device& device, gpu::BindingLayoutHandle texture
                                 gpu::BufferUsage::StorageBuffer | gpu::BufferUsage::TransferSrc | gpu::BufferUsage::TransferDst, false, false,
                                 "ray tracing light state"},
                                slot.light_state) ||
-            !dev_.CreateBuffer({sizeof(uint32_t) * gpu::kMaxLights, gpu::BufferUsage::StorageBuffer, true, false, "ray tracing light remap"},
+            !dev_.CreateBuffer({sizeof(uint32_t) * gpu::kMaxLights, gpu::BufferUsage::StorageBuffer, true, false, "ray tracing light remap", true},
                                slot.path_remap)) {
             return false;
         }
@@ -666,7 +666,7 @@ bool D3D12RayTracing::Build(gpu::CommandList& cmd, uint32_t slot_index, std::spa
         if (!dev_.CreateBuffer({sizeof(D3D12_RAYTRACING_INSTANCE_DESC) * capacity, gpu::BufferUsage::AccelerationStructureBuildInput, true, false,
                                 "ray tracing instances"},
                                instances_buffer) ||
-            !dev_.CreateBuffer({sizeof(RtRecord) * capacity, gpu::BufferUsage::StorageBuffer, true, false, "ray tracing records"}, records_buffer)) {
+            !dev_.CreateBuffer({sizeof(RtRecord) * capacity, gpu::BufferUsage::StorageBuffer, true, false, "ray tracing records", true}, records_buffer)) {
             dev_.DestroyBuffer(instances_buffer);
             dev_.DestroyBuffer(records_buffer);
             BackOff("the TLAS instance buffers");
@@ -720,6 +720,7 @@ bool D3D12RayTracing::Build(gpu::CommandList& cmd, uint32_t slot_index, std::spa
         ++used;
     }
     stats_.instances = used;
+    dev_.FlushMapped(slot.records, 0, sizeof(RtRecord) * used);
 
     BuildJob tlas;
     tlas.desc.Inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;

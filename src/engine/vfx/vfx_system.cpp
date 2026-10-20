@@ -665,6 +665,7 @@ void System::Update(float dt, const ViewInfo& view) {
                      glm::dot(last_view_->forward, view.forward) < kCameraCutCos;
     last_view_ = view;
     for (auto& [key, inst] : instances_) {
+        inst.emitted = false;
         const EffectDef& def = *inst.def;
         for (size_t i = 0; i < def.flares.size(); ++i) {
             UpdateFlare(inst, def.flares[i], inst.flares[i], dt, view, cut);
@@ -723,7 +724,11 @@ void System::Update(float dt, const ViewInfo& view) {
         }
         for (size_t i = 0; i < inst.shapes.size(); ++i) {
             const int n = Emit(inst, inst.shapes[i], def, def.shapes[i].emit, dframes, view);
+            inst.emitted |= n > 0;
             Spawn(inst, i, n, view);
+        }
+        if (inst.emitted && std::getenv("PT_VFX_TRACE_LOG")) {
+            LogDebug("vfx: emitted {} at frame {:.3f}, loop {}, owner {}", def.name, inst.frame, inst.loop, key.owner);
         }
     }
 }

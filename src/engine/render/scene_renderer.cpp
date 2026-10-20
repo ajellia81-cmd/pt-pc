@@ -168,8 +168,8 @@ bool SceneRenderer::Init(Renderer& renderer, TextureManager& textures) {
         }
     }
     for (FrameSlot& slot : slots_) {
-        if (!gpu_->CreateBuffer({sizeof(gpu::FrameData), gpu::BufferUsage::StorageBuffer, true}, slot.frame_data) ||
-            !gpu_->CreateBuffer({sizeof(glm::mat4) * gpu::kMaxSkinMatrices, gpu::BufferUsage::StorageBuffer, true}, slot.skin) ||
+        if (!gpu_->CreateBuffer({sizeof(gpu::FrameData), gpu::BufferUsage::StorageBuffer, true, false, "frame data", true}, slot.frame_data) ||
+            !gpu_->CreateBuffer({sizeof(glm::mat4) * gpu::kMaxSkinMatrices, gpu::BufferUsage::StorageBuffer, true, false, "skin matrices", true}, slot.skin) ||
             !gpu_->CreateBuffer({sizeof(glm::vec2) * gpu::kLuminanceEntries, gpu::BufferUsage::StorageBuffer, true}, slot.luminance)) {
             return false;
         }
@@ -1367,10 +1367,26 @@ float SceneRenderer::MeterLuminance(const glm::vec2* texels, uint32_t count) {
 
 void SceneRenderer::ReadMeasurements(FrameSlot& slot, float dt, const ExposureSettings& settings) {
     const bool advance_exposure = std::isfinite(dt) && dt > 0.0f;
+    constexpr double kExposureFrame = 1.0 / 30.0;
     if (advance_exposure) {
+        exposure_time_ += dt;
+    }
+    const double elapsed = exposure_time_ - exposure_updated_at_;
+    const bool exposure_tick = advance_exposure && elapsed + 1.0e-7 >= kExposureFrame;
+    if (exposure_tick) {
+        exposure_feedback_time_ = exposure_tick_times_[exposure_tick_index_];
+        exposure_tick_times_[exposure_tick_index_] = exposure_time_;
+        exposure_tick_index_ = (exposure_tick_index_ + 1) % exposure_tick_times_.size();
+        exposure_updated_at_ += std::floor((elapsed + 1.0e-7) / kExposureFrame) * kExposureFrame;
         exposure_camera_dt_ = exposure_camera_dt_ * (59.0 / 60.0) +
                               static_cast<double>(exposure_previous_dt_ * (1.0f / 60.0f));
-        exposure_previous_dt_ = dt;
+        if (!exposure_clock_started_) {
+            const uint64_t wrapped_delta = uint64_t{0} - uint64_t{1};
+            exposure_previous_dt_ = static_cast<float>(static_cast<double>(wrapped_delta) * 1.0e-6);
+            exposure_clock_started_ = true;
+        } else {
+            exposure_previous_dt_ = std::max(dt, static_cast<float>(kExposureFrame));
+        }
     }
     if (slot.timed) {
         ReadTimestamps(slot);
@@ -1425,11 +1441,23 @@ void SceneRenderer::ReadMeasurements(FrameSlot& slot, float dt, const ExposureSe
         return;
     }
     stats_.luminance = measured;
-    if (!adaptation_valid_ || !toggles.adaptation || !lighting_ || !lighting_->valid || !advance_exposure) {
+    if (!advance_exposure) {
         return;
     }
+    if (!adaptation_valid_ || !toggles.adaptation || !lighting_ || !lighting_->valid) {
+        exposure_samples_.clear();
+        return;
+    }
+    exposure_samples_.push_back({slot.exposure_sample_time, measured});
+    while (exposure_samples_.size() > 1 && exposure_samples_[1].time <= exposure_feedback_time_ + 1.0e-7) {
+        exposure_samples_.pop_front();
+    }
+    if (!exposure_tick) {
+        return;
+    }
+    const float feedback = exposure_samples_.front().luminance;
     ev_ = std::clamp(ev_, settings.min_ev, settings.max_ev);
-    const float adapted = measured * std::exp2(-(settings.compensation + ExposureCompensationFor(ev_, settings)));
+    const float adapted = feedback * std::exp2(-(settings.compensation + ExposureCompensationFor(ev_, settings)));
     const float target = std::clamp(ev_ + 0.5f * (std::log2(settings.key + 0.001f) - std::log2(adapted + 0.001f)), settings.min_ev, settings.max_ev);
     const float diff = target - ev_;
     float step = diff * (1.0f - std::pow(0.98f, 60.0f * static_cast<float>(exposure_camera_dt_))) * settings.speed * std::min(1.0f, std::abs(diff));
@@ -1440,7 +1468,7 @@ void SceneRenderer::ReadMeasurements(FrameSlot& slot, float dt, const ExposureSe
         ev_ += step;
     }
     if (static const bool ev_trace = std::getenv("PT_EV_TRACE") != nullptr; ev_trace) {
-        LogInfo("ev trace: measured {:.5f} adapted {:.5f} target {:.3f} ev {:.3f} dt {:.4f} camera_dt {:.6f}", measured, adapted, target, ev_, dt, exposure_camera_dt_);
+        LogInfo("ev trace: measured {:.5f} adapted {:.5f} target {:.3f} ev {:.3f} dt {:.4f} camera_dt {:.6f} time {:.6f} sample_time {:.6f}", feedback, adapted, target, ev_, dt, exposure_camera_dt_, exposure_time_, exposure_samples_.front().time);
     }
 }
 
@@ -1500,9 +1528,13 @@ bool SceneRenderer::DumpTargets(const std::string& prefix) {
         index << name << " " << e.width << " " << e.height << " " << static_cast<int>(format) << "\n";
     };
     RenderTarget* targets[] = {&albedo_, &normal_, &material_, &depth_, &diffuse_, &specular_, &reactive_, &motion_, &ao_[1], &particles_,
-                               &particles_near_, &particles_far_, &near_far_depth_, &near_far_depth_attachment_, &refmap_, &reflect_layer_, &hdr_, &flare_};
+                               &particles_near_, &particles_far_, &near_far_depth_, &near_far_depth_attachment_, &refmap_, &reflect_layer_, &hdr_, &flare_,
+                               &fsr_rr_input_[0], &fsr_rr_input_[1], &fsr_rr_input_[2], &fsr_rr_input_[3],
+                               &fsr_rr_depth_, &fsr_rr_motion_, &fsr_rr_normal_, &rr_normal_roughness_, &rr_hit_distance_};
     const char* names[] = {"albedo", "normal", "material", "depth", "diffuse", "specular", "reactive", "motion", "occlusion", "particles",
-                           "particles_near", "particles_far", "near_far_depth", "near_far_depth_attachment", "refmap", "reflection", "hdr", "flare"};
+                           "particles_near", "particles_far", "near_far_depth", "near_far_depth_attachment", "refmap", "reflection", "hdr", "flare",
+                           "fsr_rr_direct_diffuse", "fsr_rr_direct_specular", "fsr_rr_indirect_diffuse", "fsr_rr_indirect_specular",
+                           "fsr_rr_depth", "fsr_rr_motion", "fsr_rr_normal", "rr_normal_roughness", "rr_hit_distance"};
     for (size_t i = 0; i < std::size(targets); ++i) {
         RenderTarget& target = *targets[i];
         if (!target.Valid() || !selected(names[i])) {
@@ -1542,7 +1574,7 @@ bool SceneRenderer::DumpTargets(const std::string& prefix) {
                                                                         "pt_reference"};
     static const char* const kPathNames16[RayTracing::kPathImages16] = {"pt_spec_unshadowed", "pt_diffuse_moments0", "pt_diffuse_moments1",
                                                                         "pt_specular_moments0", "pt_specular_moments1", "pt_variance_ping",
-                                                                        "pt_variance_pong", "pt_spare", "pt_layer_raw", "pt_layer_history0",
+                                                                        "pt_variance_pong", "pt_layer_geometry", "pt_layer_raw", "pt_layer_history0",
                                                                         "pt_layer_history1"};
     for (uint32_t i = 0; i < RayTracing::kPathImages32 + RayTracing::kPathImages16; ++i) {
         const bool wide = i < RayTracing::kPathImages32;

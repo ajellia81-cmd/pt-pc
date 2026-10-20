@@ -103,6 +103,9 @@ bool PtLightEval(Light l, vec3 p, vec3 N, vec3 V, PtMaterial s, float cutoff, ou
 }
 
 vec3 PtDiscPoint(Light l, vec3 p, vec2 u) {
+    if (l.position.w < 0.5 && (uint(l.scales.w) & 1u) != 0u) {
+        return l.position.xyz;
+    }
     RtDisc d = RtLightDisc(l, p, vec2(0.0), 0.0);
     float r = d.radius * sqrt(u.x);
     float a = 6.2831853 * u.y;
@@ -176,7 +179,16 @@ float PtLightReach(Light l, vec3 origin, vec3 dir, float dist) {
 const float kPtSkinSelfReach = 0.3;
 bool g_pt_origin_skinned = false;
 
-float PtVisibility(Light l, vec3 origin, vec3 target, float foliage_strength) {
+float PtVisibility(Light l, vec3 origin, vec3 target, float foliage_strength, vec3 receiver_normal) {
+    if ((uint(l.scales.w) & 4u) != 0u) {
+        vec3 q = (l.mask * vec4(origin, 1.0)).xyz;
+        if (max(abs(q.x), max(abs(q.y), abs(q.z))) <= 1.0) {
+            vec3 n = normalize(transpose(inverse(mat3(l.mask))) * receiver_normal);
+            if (n.y < -0.4 && abs(n.z) > 0.3 && abs(n.x) < 0.2) {
+                return 1.0;
+            }
+        }
+    }
     vec3 to_light = target - origin;
     float dist = length(to_light);
     if (dist <= 1.0e-4) {
@@ -228,8 +240,8 @@ float PtVisibility(Light l, vec3 origin, vec3 target, float foliage_strength) {
     return rayQueryGetIntersectionTypeEXT(rq, true) == gl_RayQueryCommittedIntersectionTriangleEXT ? 0.0 : visibility;
 }
 
-bool PtOccluded(Light l, vec3 origin, vec3 target, inout uint rng) {
-    return PtVisibility(l, origin, target, 0.0) <= 0.0;
+bool PtOccluded(Light l, vec3 origin, vec3 target, vec3 receiver_normal, inout uint rng) {
+    return PtVisibility(l, origin, target, 0.0, receiver_normal) <= 0.0;
 }
 
 bool g_pt_fill_unshadowed = false;
@@ -280,7 +292,7 @@ vec3 PtNextEventN(vec3 p, vec3 N, vec3 V, PtMaterial s, vec3 origin, uint light_
         }
         Light l = frame.lights[chosen[k]];
         vec3 target = PtDiscPoint(l, p, vec2(RtRandom(rng), RtRandom(rng)));
-        if (!PtFillUnshadowed(chosen[k]) && PtOccluded(l, origin, target, rng)) {
+        if (!PtFillUnshadowed(chosen[k]) && PtOccluded(l, origin, target, N, rng)) {
             continue;
         }
         sum += chosen_light[k] * (total / chosen_weight[k]);
@@ -346,9 +358,12 @@ float PtCoatAmount(vec3 n_world, vec3 face_world, vec3 n_view, vec3 up, float ro
     return a > 0.02 ? a : 0.0;
 }
 
-vec3 PtCoatDirection(vec3 n_world, vec3 face_world, vec3 V, float roughness, vec2 u) {
-    vec3 coat_n = normalize(mix(face_world, dot(n_world, V) > 0.0 ? n_world : face_world, 0.15));
-    return PtLobeDirection(coat_n, V, exp2(16.0 - 4.0 * roughness), u);
+vec3 PtCoatNormal(vec3 n_world, vec3 face_world, vec3 V) {
+    return normalize(mix(face_world, dot(n_world, V) > 0.0 ? n_world : face_world, 0.15));
+}
+
+vec3 PtCoatDirection(vec3 n_world, vec3 face_world, vec3 V) {
+    return reflect(-V, PtCoatNormal(n_world, face_world, V));
 }
 
 vec3 PtSpecularAlbedo(vec3 N, vec3 V, PtMaterial s) {

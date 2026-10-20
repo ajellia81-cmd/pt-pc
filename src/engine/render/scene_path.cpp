@@ -203,7 +203,7 @@ bool SceneRenderer::EnsurePathTargets() {
         views32[i] = pt_images32_[i].image.view;
     }
     for (uint32_t i = 0; i < RayTracing::kPathImages16 && ok; ++i) {
-        ok = CreateTarget(pt_images16_[i], gpu::Format::R16G16B16A16Sfloat, i == 0 || i >= 8 ? extent_ : half, usage, gpu::Aspect::Color);
+        ok = CreateTarget(pt_images16_[i], gpu::Format::R16G16B16A16Sfloat, i == 0 || i >= 7 ? extent_ : half, usage, gpu::Aspect::Color);
         views16[i] = pt_images16_[i].image.view;
     }
     if (!ok) {
@@ -240,7 +240,8 @@ void SceneRenderer::SetupPathLights() {
         const bool hidden = (l.hidden_views & 1u) != 0;
         const bool handy_fill = l.id >= kHandyReflectionId && l.id < kHandyReflectionId + 4;
         g.shadow_cone.w = hidden || handy_fill ? -1.0f : 1.0f;
-        g.info.x = static_cast<int>((static_cast<uint32_t>(g.info.x) & ~(63u << 25)) | ((l.light_fitting & 63u) << 25));
+        const uint32_t casters = l.id == kMirrorLightId ? 32u : 128u;
+        g.info.x = static_cast<int>(casters | (l.cast_shadow ? 1u << 24 : 0u) | ((l.light_fitting & 63u) << 25));
     }
     std::unordered_map<uint64_t, uint32_t> now;
     std::vector<uint64_t> ids(std::min<size_t>(light_count_, light_sources_.size()));
@@ -359,7 +360,9 @@ void SceneRenderer::RecordPathTrace(gpu::CommandList& cmd, const ViewSetup& view
             push.ids = glm::uvec4(view.index, light_count_, mode, history);
             push.f0 = glm::vec4(reach, std::floor(layer_bounces), static_cast<float>(frame_counter_ & 0xFFFFFFu), clamp_light);
             static const bool mirror_linear = std::getenv("PT_PATH_MIRROR_LINEAR") != nullptr;
-            push.f1 = glm::vec4(0.0f, 1.0f, 0.0f, (coat ? 1.0f : 0.0f) + (mirror_linear ? 2.0f : 0.0f) + (fsr_rr ? 4.0f : 0.0f));
+            const bool dlss_rr = rr_frame_ && up_.kind == UpscalerKind::Dlss;
+            push.f1 = glm::vec4(0.0f, 1.0f, 0.0f, (coat ? 1.0f : 0.0f) + (mirror_linear ? 2.0f : 0.0f) + (fsr_rr ? 4.0f : 0.0f) +
+                               (dlss_rr ? 8.0f : 0.0f));
             push.f2 = glm::vec4(screen.reflect_scale, screen.reflect_bias, rt_full_previous_jitter_);
             push.m = rt_full_previous_;
             PushConstants(cmd, &push, sizeof(push));
@@ -423,7 +426,7 @@ void SceneRenderer::RecordPathLayers(gpu::CommandList& cmd, const ViewSetup& vie
 }
 
 void SceneRenderer::RecordRrGuides(gpu::CommandList& cmd, const ViewSetup& view) {
-    cmd.UseTargets({{&pt_images16_[8], gpu::Layout::General}, {&rt_full_images_[10], gpu::Layout::General},
+    cmd.UseTargets({{&pt_images16_[7], gpu::Layout::General}, {&pt_images16_[8], gpu::Layout::General}, {&rt_full_images_[10], gpu::Layout::General},
                      {&depth_, gpu::Layout::DepthReadOnly}, {&normal_, gpu::Layout::ShaderReadOnly},
                      {&material_, gpu::Layout::ShaderReadOnly}, {&albedo_, gpu::Layout::ShaderReadOnly},
                      {&rr_diffuse_albedo_, gpu::Layout::ColorAttachment}, {&rr_specular_albedo_, gpu::Layout::ColorAttachment},
@@ -434,7 +437,7 @@ void SceneRenderer::RecordRrGuides(gpu::CommandList& cmd, const ViewSetup& view)
     const gpu::BindingSetHandle rt_set = rt_->Set(renderer_->FrameIndex());
     cmd.BindSets(gpu::BindPoint::Graphics, rt_->Layout(), 2, {&rt_set, 1});
     gpu::PassPush push;
-    push.ids = glm::uvec4(view.index, 0u, 0u, 0u);
+    push.ids = glm::uvec4(view.index, up_.kind == UpscalerKind::Dlss ? 1u : 0u, 0u, 0u);
     Fullscreen(cmd, pt_rr_guides_, push);
     cmd.EndPass();
     cmd.UseTargets({{&rr_diffuse_albedo_, gpu::Layout::ShaderReadOnly}, {&rr_specular_albedo_, gpu::Layout::ShaderReadOnly},

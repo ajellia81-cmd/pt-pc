@@ -118,6 +118,8 @@ void Trace(ivec2 pixel, ivec2 size) {
     bool glass = FindGlass(eye, dir, LayerEnd(t_mirror), t_glass, glass_hit);
     float first;
     float mirror_distance = 0.0;
+    float coat_distance = 0.0;
+    vec3 coat_normal = vec3(0.0);
     if (glass) {
         Material m = materials[glass_hit.material];
         vec3 I = dir;
@@ -201,21 +203,29 @@ void Trace(ivec2 pixel, ivec2 size) {
         float a = PtCoatAmount(N, ng, n_view, pass.f1.xyz, roughness, pass.f2.x, pass.f2.y);
         if (a > 0.0) {
             vec3 V = -dir;
-            vec3 d = PtCoatDirection(N, ng, V, roughness, vec2(RtRandom(rng), RtRandom(rng)));
+            coat_normal = PtCoatNormal(N, ng, V);
+            vec3 d = PtCoatDirection(N, ng, V);
             if (dot(d, ng) <= 0.0) {
                 d = normalize(d - 2.0 * dot(d, ng) * ng);
             }
             vec3 L = Clamp(PtTracePath(world + ng * max(0.003, 0.0015 * c.z), d, vec3(1.0), bounces, reach, 2.0, pass.ids.y, Cutoff(), rng, first));
             bool hit = first < reach || max(L.r, max(L.g, L.b)) > 0.0;
+            coat_distance = hit ? first : 0.0;
             result = hit ? vec4(L, 2.0 + a) : vec4(0.0, 0.0, 0.0, 2.0);
         }
     }
     float peak = max(result.r, max(result.g, result.b));
     vec3 stored = glass ? (peak > 60000.0 ? result.rgb * (60000.0 / peak) : result.rgb) : min(result.rgb, vec3(64.0));
     imageStore(pt_layer_raw, pixel, vec4(stored, result.a));
+    imageStore(pt_layer_geometry, pixel, vec4(coat_normal, coat_distance));
     if ((uint(pass.f1.w + 0.5) & 4u) != 0u && mirror && !glass) {
         vec4 glossy = imageLoad(rt_glossy_raw, pixel);
         glossy.a = mirror_distance;
+        imageStore(rt_glossy_raw, pixel, glossy);
+    }
+    if ((uint(pass.f1.w + 0.5) & 8u) != 0u && floor(result.a * 0.5) == 1.0 && result.a > 2.0) {
+        vec4 glossy = imageLoad(rt_glossy_raw, pixel);
+        glossy.a = coat_distance;
         imageStore(rt_glossy_raw, pixel, glossy);
     }
 }
@@ -234,7 +244,8 @@ void Temporal(ivec2 pixel, ivec2 size) {
         if (second) imageStore(pt_layer_history1, pixel, value); else imageStore(pt_layer_history0, pixel, value);
         return;
     }
-    vec2 ndc = (vec2(pixel) + 0.5) * v.viewport.zw * 2.0 - 1.0;
+    bool coat = kind == 1.0 && raw.a > 2.0;
+    vec2 ndc = coat ? PixelNdc(v, vec2(pixel) + 0.5) : (vec2(pixel) + 0.5) * v.viewport.zw * 2.0 - 1.0;
     float t_layer = 0.0;
     if (kind >= 2.0 && depth <= 0.0) {
         vec3 dir = normalize(mat3(v.inv_view) * normalize(vec3(ndc * v.projection_param.xy, 1.0)));
@@ -311,11 +322,17 @@ void Temporal(ivec2 pixel, ivec2 size) {
             reflected = false;
         }
     }
+    if (coat) {
+        float t_far = imageLoad(pt_layer_geometry, pixel).w;
+        vec3 dir = normalize(world - v.eye.xyz);
+        world += dir * t_far;
+        reflected = true;
+    }
     vec3 history = vec3(0.0);
     float count = 0.0;
     vec4 previous = pass.m * vec4(world, 1.0);
     if ((pass.ids.w & 2u) == 0u && previous.w > 1.0e-4) {
-        vec2 at = ((previous.xy / previous.w - pass.f2.zw) * 0.5 + 0.5) * v.viewport.xy - 0.5;
+        vec2 at = ((previous.xy / previous.w - (coat ? vec2(0.0) : pass.f2.zw)) * 0.5 + 0.5) * v.viewport.xy - 0.5;
         ivec2 base = ivec2(floor(at));
         vec2 f = at - vec2(base);
         float weights[4] = float[4]((1.0 - f.x) * (1.0 - f.y), f.x * (1.0 - f.y), (1.0 - f.x) * f.y, f.x * f.y);

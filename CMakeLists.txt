@@ -40,7 +40,7 @@ list(FILTER PT_ENGINE_SOURCES EXCLUDE REGEX "src/engine/render/d3d12/backend/")
 # This build's version: raised here for each release. tools/ci/release.py --version sets it through the environment at build
 # time (cmake/version.cmake); PT_VERSION_OVERRIDE sets it for one build folder.
 set(PT_VERSION_OVERRIDE "" CACHE STRING "Version for this build folder instead of the one in CMakeLists.txt")
-set(PT_VERSION "1.0.6")
+set(PT_VERSION "1.0.7")
 if(PT_VERSION_OVERRIDE)
   set(PT_VERSION "${PT_VERSION_OVERRIDE}")
 endif()
@@ -306,6 +306,9 @@ add_custom_command(OUTPUT "${PT_REFLECTION_MIX_SHADER}"
 add_custom_target(pt_reflection_mix_shader DEPENDS "${PT_REFLECTION_MIX_SHADER}")
 add_executable(pt_reflection_mix_test tests/reflection_mix_test.cpp)
 target_link_libraries(pt_reflection_mix_test PRIVATE pt_engine)
+if(TARGET pt_gpu_d3d12)
+  target_link_libraries(pt_reflection_mix_test PRIVATE pt_gpu_d3d12)
+endif()
 target_compile_definitions(pt_reflection_mix_test PRIVATE PT_REFLECTION_MIX_SHADER="${PT_REFLECTION_MIX_SHADER}")
 add_dependencies(pt_reflection_mix_test pt_reflection_mix_shader)
 
@@ -317,6 +320,9 @@ add_custom_command(OUTPUT "${PT_NATIVE_PROJECTION_SHADER}"
 add_custom_target(pt_native_projection_shader DEPENDS "${PT_NATIVE_PROJECTION_SHADER}")
 add_executable(pt_native_projection_test tests/rt_native_projection_test.cpp)
 target_link_libraries(pt_native_projection_test PRIVATE pt_engine)
+if(TARGET pt_gpu_d3d12)
+  target_link_libraries(pt_native_projection_test PRIVATE pt_gpu_d3d12)
+endif()
 target_compile_definitions(pt_native_projection_test PRIVATE PT_NATIVE_PROJECTION_SHADER="${PT_NATIVE_PROJECTION_SHADER}")
 add_dependencies(pt_native_projection_test pt_native_projection_shader)
 

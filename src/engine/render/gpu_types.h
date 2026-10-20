@@ -14,6 +14,7 @@ constexpr uint32_t kImageSlots = 64;
 constexpr uint32_t kInvalid = 0xFFFFFFFFu;
 constexpr uint32_t kLightCastsShadow = 1u;
 constexpr uint32_t kLightNoFitting = 2u;
+constexpr uint32_t kLightStairCeiling = 4u;
 constexpr uint32_t kLuminanceGroups = 16384;
 constexpr uint32_t kReflectionReadback = kLuminanceGroups;
 constexpr uint32_t kLuminanceEntries = kLuminanceGroups + 2;

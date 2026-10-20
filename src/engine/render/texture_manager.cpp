@@ -152,6 +152,8 @@ bool TextureManager::Init(gpu::Device& device) {
     materials.size = sizeof(MaterialGpu) * kMaxMaterials;
     materials.usage = gpu::BufferUsage::StorageBuffer;
     materials.host_visible = true;
+    materials.gpu_read_only = true;
+    materials.name = "materials";
     if (!device.CreateBuffer(materials, material_buffer_)) {
         return false;
     }

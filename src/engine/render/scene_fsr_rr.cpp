@@ -40,7 +40,7 @@ void SceneRenderer::RecordFsrRayRegeneration(gpu::CommandList& cmd, const ViewSe
     for (auto& t : fsr_rr_input_) cmd.UseTargets({{&t, gpu::Layout::ShaderReadOnly}});
     cmd.UseTargets({{&fsr_rr_depth_, gpu::Layout::ShaderReadOnly}, {&fsr_rr_motion_, gpu::Layout::ShaderReadOnly},
                     {&fsr_rr_normal_, gpu::Layout::ShaderReadOnly}});
-    RenderTarget* output[] = {&rt_full_images_[8], &rt_full_images_[13], &rt_full_images_[9], &rt_full_images_[14]};
+    RenderTarget* output[] = {&rt_full_images_[10], &rt_full_images_[15], &rt_full_images_[11], &rt_full_images_[16]};
     for (auto* t : output) cmd.UseTargets({{t, gpu::Layout::General}});
     cmd.GlobalBarrier(gpu::PipelineStage::ComputeShader | gpu::PipelineStage::FragmentShader,
                       gpu::Access::ShaderStorageWrite | gpu::Access::ShaderStorageRead,

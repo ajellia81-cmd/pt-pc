@@ -21,7 +21,7 @@ glm::vec3 Paraboloid(glm::vec3 relative, bool receiver, bool native_caster) {
     const float distance = glm::length(relative);
     const float shrink = receiver || native_caster ? 2046.0f / 2048.0f : 1.0f;
     const glm::vec2 uv = shrink * glm::vec2(-relative.x, relative.y) / (distance + std::abs(relative.z));
-    const float k = 3.0f * 2048.0f / 2046.0f;
+    const float k = pt::PointShadowRange(3.0f);
     return glm::vec3(uv, 1.0f - distance / k);
 }
 
@@ -37,6 +37,23 @@ bool TriangleShadows(const std::array<glm::vec3, 3>& triangle, glm::vec3 receive
 }
 
 int main() {
+    const float range = pt::PointShadowRange(3.0f);
+    Check(std::abs((3.0f - range) - -0.005870819f) < 3e-7f, "native hemisphere overlap is retained at a 2048-pixel tile");
+    Check(std::abs(1.0f / range - 0.3326823f) < 1e-7f, "native radial depth scale is retained");
+    for (bool positive : {false, true}) {
+        const unsigned native_control = positive ? 0x245u : 0x246u;
+        for (float winding : {-1.0f, 1.0f}) {
+            const std::array<glm::vec2, 3> triangle{{{0, 0}, {winding, 0}, {0, 1}}};
+            auto area = [](glm::vec2 a, glm::vec2 b, glm::vec2 c) {
+                return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+            };
+            const bool native_front = (area(triangle[0], triangle[1], triangle[2]) > 0) == ((native_control & 4) != 0);
+            const bool native_kept = (native_control & (native_front ? 1u : 2u)) == 0;
+            const bool port_front = area(triangle[0], triangle[2], triangle[1]) < 0;
+            const bool port_kept = port_front != pt::PointShadowCullFront(positive);
+            Check(port_kept == native_kept, "both triangle windings retain native hemisphere face coverage after FMDL import");
+        }
+    }
     const glm::vec3 light(-8.3516644f, 2.3337026f, 25.6185924f);
     const glm::mat4 view = pt::PointShadowView(light);
     for (const glm::vec3 delta : std::array<glm::vec3, 8>{{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}, {-1, -2, -3},
