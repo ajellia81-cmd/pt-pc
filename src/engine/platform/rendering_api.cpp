@@ -9,72 +9,9 @@
 #include <string>
 #include <utility>
 
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#include <commctrl.h>
-#endif
-
 #include "engine/platform/os.h"
 
 namespace pt {
-
-namespace {
-
-#ifdef _WIN32
-
-// Keep this dynamically resolved.  Linking TaskDialogIndirect through comctl32.lib
-// made the portable build fail to start on some installations before main() ran.
-// Task Dialog has been present since Vista, but SDL remains the fallback if it is
-// unavailable or refuses the request.
-std::wstring Wide(std::string_view text) {
-    if (text.empty()) return {};
-    const int count = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text.data(), static_cast<int>(text.size()), nullptr, 0);
-    if (count <= 0) return {};
-    std::wstring out(static_cast<size_t>(count), L'\0');
-    MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text.data(), static_cast<int>(text.size()), out.data(), count);
-    return out;
-}
-
-AskAnswer AskRenderingApiWindows(std::string_view title, std::string_view message, RenderingApi& out) {
-    const std::wstring wide_title = Wide(title);
-    const std::wstring wide_message = Wide(message);
-    if (wide_title.empty() || wide_message.empty()) return AskAnswer::NotShown;
-
-    HMODULE common_controls = LoadLibraryW(L"comctl32.dll");
-    if (!common_controls) return AskAnswer::NotShown;
-    using TaskDialogIndirectFn = HRESULT(WINAPI*)(const TASKDIALOGCONFIG*, int*, int*, BOOL*);
-    const auto task_dialog = reinterpret_cast<TaskDialogIndirectFn>(GetProcAddress(common_controls, "TaskDialogIndirect"));
-    if (!task_dialog) {
-        FreeLibrary(common_controls);
-        return AskAnswer::NotShown;
-    }
-
-    const TASKDIALOG_BUTTON buttons[] = {{1, L"DirectX 12"}, {2, L"Vulkan"}};
-    TASKDIALOGCONFIG dialog{};
-    dialog.cbSize = sizeof(dialog);
-    dialog.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION;
-    dialog.pszWindowTitle = wide_title.c_str();
-    dialog.pszContent = wide_message.c_str();
-    dialog.pszMainIcon = TD_INFORMATION_ICON;
-    dialog.cButtons = ARRAYSIZE(buttons);
-    dialog.pButtons = buttons;
-    dialog.nDefaultButton = 2;
-    // SDL's native message box sizes itself too narrowly for Korean.  A fixed
-    // client width keeps the complete, unabridged prompt readable.
-    dialog.cxWidth = 560;
-    int pressed = 0;
-    const HRESULT result = task_dialog(&dialog, &pressed, nullptr, nullptr);
-    FreeLibrary(common_controls);
-    if (FAILED(result)) return AskAnswer::NotShown;
-    if (pressed != 1 && pressed != 2) return AskAnswer::Closed;
-    out = pressed == 1 ? RenderingApi::D3D12 : RenderingApi::Vulkan;
-    return AskAnswer::Chosen;
-}
-
-#endif
-
-}
 
 std::string_view RenderingApiKey(RenderingApi api) {
     return api == RenderingApi::D3D12 ? "d3d12" : "vulkan";
@@ -198,11 +135,6 @@ RenderingApi ChooseRenderingApi(std::string_view cli, std::string_view setting, 
 }
 
 AskAnswer AskRenderingApi(std::string_view title, std::string_view message, RenderingApi& out) {
-#ifdef _WIN32
-    if (const AskAnswer answer = AskRenderingApiWindows(title, message, out); answer != AskAnswer::NotShown) {
-        return answer;
-    }
-#endif
     const std::string t(title);
     const std::string m(message);
     const SDL_MessageBoxButtonData buttons[] = {
