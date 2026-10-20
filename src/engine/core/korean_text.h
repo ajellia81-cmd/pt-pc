@@ -431,7 +431,7 @@ inline constexpr Text kMenu[] = {
     {"pc_dolby_atmos","홈 시어터용 Dolby Atmos"}, {"pc_note_dolby_atmos","게임을 다시 시작하면 Windows 공간 음향의 동적 객체를 사용합니다. Windows에서 홈 시어터용 Dolby Atmos를 켜세요. 사용할 수 없으면 일반 스테레오/5.1/7.1 출력으로 전환됩니다."},
     {"pc_game_plus","게임+"}, {"pc_note_game_plus","원본에는 없는 기능입니다. 켜면 완료한 게임에서 해제한 게임+ 콘텐츠를 사용합니다. 끄면 모든 플레이가 원본 게임으로 진행되며 완료 기록은 유지됩니다. 다음 루프부터 적용됩니다."},
     {"pc_rendering_api","렌더링 API"}, {"pc_note_rendering_api","DirectX 12 또는 Vulkan을 사용합니다. 다음에 게임을 시작할 때 적용됩니다."},
-    {"pc_rendering_api_prompt","그래픽 API를 선택하세요.\n나중에 설정에서 바꿀 수 있습니다."},
+    {"pc_rendering_api_prompt","그래픽 API를\n선택하세요.\n나중에 설정에서\n바꿀 수 있습니다."},
     {"pc_neural_rendering","DLSS 5 뉴럴 렌더링"}, {"pc_note_neural_rendering","NVIDIA DLSS 5가 UI와 필름 그레인 전에 완성된 화면(재질, 피부, 조명)을 신경망으로 다시 그립니다. 원본에는 없는 기능입니다."},
     {"pc_neural_style","뉴럴 스타일"}, {"pc_nr_style_default","기본"}, {"pc_nr_style_natural","자연스러움"}, {"pc_nr_style_cinematic","영화풍"},
     {"pc_note_neural_style","DLSS 5가 목표로 하는 화면 스타일을 선택합니다: NVIDIA 기본, 자연스러움 또는 영화풍."},
