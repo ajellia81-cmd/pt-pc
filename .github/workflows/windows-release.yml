@@ -1,0 +1,124 @@
+name: Windows x64 Release
+
+on:
+  push:
+    branches: [main, feature/windows-spatial-atmos]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Vulkan SDK and build tools
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installed = $false
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            choco install vulkan-sdk --no-progress -y
+            if ($LASTEXITCODE -eq 0 -and (Get-ChildItem 'C:\VulkanSDK' -Directory -ErrorAction SilentlyContinue | Where-Object { Test-Path (Join-Path $_.FullName 'Bin\glslc.exe') })) {
+              $installed = $true
+              break
+            }
+            Start-Sleep -Seconds (15 * $attempt)
+          }
+          if (-not $installed) {
+            # Chocolatey's V2 feed occasionally returns 503 on hosted runners.
+            # Fall back to the pinned, official LunarG installer and verify it
+            # before executing it instead of accepting an unchecked download.
+            $sdk = Join-Path $env:RUNNER_TEMP 'vulkansdk-windows-X64-1.4.363.0.exe'
+            Invoke-WebRequest -Uri 'https://sdk.lunarg.com/sdk/download/1.4.363.0/windows/vulkansdk-windows-X64-1.4.363.0.exe' -OutFile $sdk
+            $hash = (Get-FileHash $sdk -Algorithm SHA256).Hash
+            if ($hash -ne '94A82D378F7A5E3E54C9DB7D2FB7016AF136E14AC0A18DBF0F2F67A36352D141') { throw "Unexpected Vulkan SDK hash: $hash" }
+            $process = Start-Process -FilePath $sdk -ArgumentList 'install --accept-licenses --default-answer --confirm-command' -Wait -PassThru
+            if ($process.ExitCode -ne 0) { throw "Official Vulkan SDK installer failed: $($process.ExitCode)" }
+            $installed = [bool](Get-ChildItem 'C:\VulkanSDK' -Directory -ErrorAction SilentlyContinue | Where-Object { Test-Path (Join-Path $_.FullName 'Bin\glslc.exe') })
+          }
+          if (-not $installed) { throw 'Vulkan SDK installation did not provide glslc.exe' }
+          if (-not (Get-Command ninja -ErrorAction SilentlyContinue)) { choco install ninja --no-progress -y }
+
+      - name: Bundle Noto Sans KR
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/google/fonts/e9678a5385322c63730122ba464765baad83cfd8/ofl/notosanskr/NotoSansKR%5Bwght%5D.ttf' -OutFile 'assets/fonts/NotoSansKR.ttf'
+          Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/google/fonts/e9678a5385322c63730122ba464765baad83cfd8/ofl/notosanskr/OFL.txt' -OutFile 'assets/fonts/OFL-NotoSansKR.txt'
+          if ((Get-Item 'assets/fonts/NotoSansKR.ttf').Length -lt 10000000) { throw 'Noto Sans KR download is incomplete' }
+
+      - name: Configure and build x64 Release
+        shell: pwsh
+        run: |
+          & cmd.exe /c tools\build_pt.bat release release pt_release 2>&1 | Tee-Object -FilePath windows-build.log
+          $code = $LASTEXITCODE
+          if ($code -eq 0) {
+            cmake --build build\release --target pt_release 2>&1 | Tee-Object -FilePath windows-build.log -Append
+            $code = $LASTEXITCODE
+          }
+          if ($code -ne 0) {
+            Get-Content windows-build.log | Select-String -Pattern '(: error |error C[0-9]+|CMake Error|FAILED:|fatal error)' | ForEach-Object {
+              Write-Host "::error::$($_.Line)"
+            }
+            exit $code
+          }
+
+      - name: Run audio and settings checks
+        shell: cmd
+        run: |
+          cmake --build build\release --target pt_audio_channel_layout_test pt_settings_roundtrip_test pt_korean_text_layout_test pt_d3d12_backend_test
+          build\release\pt_audio_channel_layout_test.exe
+          mkdir build\release\test-output
+          build\release\pt_settings_roundtrip_test.exe build\release\test-output
+          build\release\pt_korean_text_layout_test.exe
+
+      - name: Verify packaged runtime files
+        shell: cmd
+        run: |
+          for %%F in (build\release\pt_release.exe build\release\pt_release.exe.upscalers.json build\release\lisa_date\script.txt build\release\lisa_date\text\eng.txt build\release\lisa_date\text\kor.txt build\release\lisa_date\music.ogg) do (
+            if not exist "%%F" (
+              echo Missing localized runtime file: %%F
+              exit /b 1
+            )
+          )
+
+      - name: Download original 1.0.6 Windows runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Invoke-WebRequest -Uri 'https://github.com/LoreanXavier/pt-pc/releases/download/v1.0.6/P.T.PC.Port-portable-windows.zip' -OutFile baseline-windows.zip
+          if ((Get-Item baseline-windows.zip).Length -lt 400MB) { throw 'The 1.0.6 baseline download is incomplete' }
+          $entries = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path baseline-windows.zip)).Entries.FullName
+          foreach ($entry in @('D3D12/D3D12Core.dll', 'pt-native-nvngx.dll', 'nvngx_dlss.dll', 'nvngx_dlssd.dll', 'nvngx_dlssg.dll', 'shaders/forward.frag.dxil')) {
+            if (-not ($entries | Where-Object { $_ -like "*/$entry" })) { throw "The upstream 1.0.6 baseline is missing $entry" }
+          }
+
+      - name: Assemble localized runtime without dropping original files
+        shell: pwsh
+        run: |
+          python tools\package_windows_overlay.py --baseline baseline-windows.zip --build build\release --out artifacts
+
+      - name: Upload portable runtime
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: P.T.PC.Port-windows-x64-Release
+          if-no-files-found: error
+          path: |
+            artifacts/*.zip
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build-log
+          path: windows-build.log

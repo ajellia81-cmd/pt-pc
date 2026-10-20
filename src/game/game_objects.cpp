@@ -172,6 +172,7 @@ void OchoLogic::ApplyRootMotion(const glm::vec3& translation, const glm::quat& r
 
 void OchoLogic::PlaceAt(const glm::vec3& position, const glm::quat& rotation) {
     world_ = glm::translate(glm::mat4(1.0f), position) * glm::mat4_cast(rotation);
+    ocho_pos_ = position;
     game_.Objects().SetOchoTransform(world_);
 }
 
@@ -346,6 +347,10 @@ void OchoLogic::UpdateWarp() {
 void OchoLogic::UpdateChase() {
     const glm::vec3 position = player_pos_ - 3.0f * player_forward_;
     PlaceAt(position, player_rotation_);
+    // Lisa's cry shares the record sound object with her footsteps.  Keep that
+    // object at her transform even while she is standing, so a cry cannot use
+    // the position sampled before PlaceAt updated her for this frame.
+    game_.MoveOchoSound(ocho_pos_);
     const Player& player = game_.GetPlayer();
     if (player.Walking()) {
         if (!game_.IsSoundPlaying(steps_sound_)) {

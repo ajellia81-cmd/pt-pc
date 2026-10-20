@@ -6,6 +6,7 @@ ui_auto = Auto
 ui_skip = Salta
 ui_affection = Affetto
 ui_leave_hold = Tieni premuto per lasciare l'appuntamento
+ui_title = Un caffè con Lisa
 title_1 = Parte 1: Caffè nero
 title_2 = Parte 2: Due zollette
 title_3 = Parte 3: Ultimo giro

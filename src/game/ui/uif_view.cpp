@@ -350,6 +350,21 @@ void UifView::Draw(ui::UiBatch& batch, const UiCanvas& canvas, int language, flo
             text_style.font_height *= text_scale;
             text_style.text_space *= text_scale;
             text_style.line_space *= text_scale;
+            if (state.font_scale) {
+                text_style.font_width *= *state.font_scale;
+                text_style.font_height *= *state.font_scale;
+                text_style.text_space *= *state.font_scale;
+                text_style.line_space *= *state.font_scale;
+            }
+            // Noto Sans KR has a taller apparent x-height than the original Latin/Japanese UI faces.
+            if (font_language == 14 && type != UiFontType::Movie) {
+                // Match Noto Sans KR's taller visible Hangul blocks to the original English/Japanese UI cap height.
+                constexpr float kKoreanUiScale = .80f;
+                text_style.font_width *= kKoreanUiScale;
+                text_style.font_height *= kKoreanUiScale;
+                text_style.text_space *= kKoreanUiScale;
+                text_style.line_space *= kKoreanUiScale;
+            }
             if (state.text_line_pitch) text_style.line_space = *state.text_line_pitch - text_style.font_height * font->font.LineFactor();
             const std::vector<UifInlinePicture>& pictures = state.inline_pictures;
             for (const UifInlinePicture& picture : pictures) {

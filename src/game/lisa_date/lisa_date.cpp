@@ -131,6 +131,13 @@ bool LisaDate::Start(const Settings& settings) {
         return false;
     }
     LoadText();
+    // Build the complete language atlas before the first transition frame.  The title
+    // fallback contains the Latin `fl` ligature, while the later dialogue contains
+    // language-specific characters that are not part of the normal UI atlas.
+    // Making it here avoids replacing the atlas while the title is already visible.
+    font_tried_ = true;
+    font_ = assets_.FontCovering(UiFontType::PcSystem, std::clamp(settings_.language, 0, UiAssets::kLanguageCount - 1),
+                                 text_.All() + "Coffee with Lisa");
     run_ = std::make_unique<LisaDateRun>(script_);
     run_->Restart();
     const ModelEntry* lisa = models_.Get(kLisaModel);
@@ -1228,7 +1235,7 @@ void LisaDate::DrawTransition(ui::UiBatch& batch, const UiCanvas& canvas, glm::v
                 batch.Quad(canvas.ToTarget(middle - half), canvas.ToTarget(middle + half), {0, 0}, {1, 1}, glm::vec4(1.0f, 1.0f, 1.0f, logo),
                            ui::UiDrawParams::Plain(logo_.texture), ui::UiShade::Material, ui::UiBlend::Alpha);
             } else {
-                DrawLabel(batch, canvas, "Coffee with Lisa", middle - glm::vec2(500.0f, 60.0f), middle + glm::vec2(500.0f, 60.0f), 64.0f,
+                DrawLabel(batch, canvas, text_.Get("ui_title"), middle - glm::vec2(500.0f, 60.0f), middle + glm::vec2(500.0f, 60.0f), 64.0f,
                           glm::vec4(glm::vec3(kRose), logo), ui::TextAlign::Center);
             }
         }
