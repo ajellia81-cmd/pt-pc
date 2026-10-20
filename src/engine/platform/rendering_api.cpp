@@ -39,7 +39,7 @@ AskAnswer AskRenderingApiWindows(std::string_view title, std::string_view messag
     const TASKDIALOG_BUTTON buttons[] = {{1, L"DirectX 12"}, {2, L"Vulkan"}};
     TASKDIALOGCONFIG dialog{};
     dialog.cbSize = sizeof(dialog);
-    dialog.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT;
+    dialog.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION;
     dialog.pszWindowTitle = wide_title.c_str();
     dialog.pszContent = wide_message.c_str();
     dialog.pszMainIcon = TD_INFORMATION_ICON;
