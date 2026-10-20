@@ -91,15 +91,15 @@ jobs:
             )
           )
 
-      - name: Download original 1.0.6 Windows runtime
+      - name: Download original 1.0.7 Windows runtime
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          Invoke-WebRequest -Uri 'https://github.com/LoreanXavier/pt-pc/releases/download/v1.0.6/P.T.PC.Port-portable-windows.zip' -OutFile baseline-windows.zip
-          if ((Get-Item baseline-windows.zip).Length -lt 400MB) { throw 'The 1.0.6 baseline download is incomplete' }
+          Invoke-WebRequest -Uri 'https://github.com/LoreanXavier/pt-pc/releases/download/v1.0.7/P.T.PC.Port-portable-windows.zip' -OutFile baseline-windows.zip
+          if ((Get-Item baseline-windows.zip).Length -lt 400MB) { throw 'The 1.0.7 baseline download is incomplete' }
           $entries = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path baseline-windows.zip)).Entries.FullName
           foreach ($entry in @('D3D12/D3D12Core.dll', 'pt-native-nvngx.dll', 'nvngx_dlss.dll', 'nvngx_dlssd.dll', 'nvngx_dlssg.dll', 'shaders/forward.frag.dxil')) {
-            if (-not ($entries | Where-Object { $_ -like "*/$entry" })) { throw "The upstream 1.0.6 baseline is missing $entry" }
+            if (-not ($entries | Where-Object { $_ -like "*/$entry" })) { throw "The upstream 1.0.7 baseline is missing $entry" }
           }
 
       - name: Assemble localized runtime without dropping original files
