@@ -42,6 +42,7 @@ struct AppSettings {
         float volume = 1.0f;
         bool surround = false;
         bool spatial = false;
+        bool dolby_atmos = false;
         bool controller_speaker = false;
         float controller_speaker_volume = 0.5f;
     } audio;

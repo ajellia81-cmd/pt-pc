@@ -38,6 +38,7 @@ const char* FontFile(std::string_view family) {
     if (family == "Noto Kufi Arabic") return "NotoKufiArabic.ttf";
     if (family == "Noto Naskh Arabic") return "NotoNaskhArabic.ttf";
     if (family == "Noto Sans SC") return "NotoSansSC.ttf";
+    if (family == "Noto Sans KR") return "NotoSansKR.ttf";
     return nullptr;
 }
 uint16_t Be16(const unsigned char* p) { return uint16_t((p[0] << 8) | p[1]); }
@@ -98,7 +99,8 @@ std::vector<Shaped> ShapeRun(const UnicodeFontState& s, std::span<const uint32_t
 }
 }
 
-bool FfntFont::LoadUnicodeFont(std::string_view family, std::string_view characters, bool rtl, std::string* error) {
+bool FfntFont::LoadUnicodeFont(std::string_view family, std::string_view characters, bool rtl, std::string* error, int weight,
+                               bool outline_padding) {
     auto fail = [&](const char* text) { if (error) *error = text; return false; };
     const char* file = FontFile(family);
     if (!file) return fail("bundled font face unavailable");
@@ -129,6 +131,8 @@ bool FfntFont::LoadUnicodeFont(std::string_view family, std::string_view charact
     state->font = hb_font_create(state->face);
     const unsigned upem = hb_face_get_upem(state->face);
     hb_font_set_scale(state->font, int(upem), int(upem));
+    const hb_variation_t variation{HB_TAG('w', 'g', 'h', 't'), float(weight)};
+    hb_font_set_variations(state->font, &variation, 1);
 
     std::set<uint32_t> ids;
     std::vector<std::pair<uint32_t, uint32_t>> codes;
@@ -151,16 +155,21 @@ bool FfntFont::LoadUnicodeFont(std::string_view family, std::string_view charact
         int x0 = 0, y0 = 0, x1 = 0, y1 = 0, advance = 0, bearing = 0;
         stbtt_GetGlyphBitmapBox(&state->info, int(id), state->scale, state->scale, &x0, &y0, &x1, &y1);
         stbtt_GetGlyphHMetrics(&state->info, int(id), &advance, &bearing);
-        if (x1 - x0 > 1020 || y1 - y0 > 1020) return fail("font glyph too large or unreadable");
+        constexpr int kOutlinePadding = 2;
+        const int raw_width = std::max(0, x1 - x0), raw_height = std::max(0, y1 - y0);
+        const int max_box = outline_padding ? 1016 : 1020;
+        if (raw_width > max_box || raw_height > max_box) return fail("font glyph too large or unreadable");
+        const int padding = outline_padding && raw_width && raw_height ? kOutlinePadding : 0;
         FfntGlyph g;
         g.code = 0x100000 + id;
-        g.width = uint16_t(std::max(0, x1 - x0));
-        g.height = uint16_t(std::max(0, y1 - y0));
+        g.width = uint16_t(raw_width + padding * 2);
+        g.height = uint16_t(raw_height + padding * 2);
         g.advance = uint16_t(std::clamp<long>(std::lround(advance * state->scale), 0, 65535));
-        g.bearing = int16_t(x0);
-        g.top = int16_t(state->ascent + y0);
+        g.bearing = int16_t(x0 - padding);
+        g.top = int16_t(state->ascent + y0 - padding);
         std::vector<uint8_t> alpha(size_t(g.width) * g.height);
-        if (!alpha.empty()) stbtt_MakeGlyphBitmap(&state->info, alpha.data(), g.width, g.height, g.width, state->scale, state->scale, int(id));
+        if (raw_width && raw_height) stbtt_MakeGlyphBitmap(&state->info, alpha.data() + size_t(padding) * g.width + padding,
+                                                            raw_width, raw_height, g.width, state->scale, state->scale, int(id));
         composed_[g.code] = alpha;
         glyphs_.push_back(g);
         for (auto [code, glyph_id] : codes) {

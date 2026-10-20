@@ -59,8 +59,8 @@ struct UiFont {
 
 class UiAssets {
 public:
-    static constexpr int kLanguageCount = 14;
-    static constexpr const char* kLanguageCodes[kLanguageCount] = {"eng", "fra", "deu", "spa", "jpn", "ita", "por", "tur", "zhs", "ara", "rus", "ukr", "ces", "pol"};
+    static constexpr int kLanguageCount = 15;
+    static constexpr const char* kLanguageCodes[kLanguageCount] = {"eng", "fra", "deu", "spa", "jpn", "ita", "por", "tur", "zhs", "ara", "rus", "ukr", "ces", "pol", "kor"};
 
     UiAssets() = default;
     UiAssets(const UiAssets&) = delete;

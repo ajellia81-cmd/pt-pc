@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal EnableExtensions EnableDelayedExpansion
 set "PRESET=%~1"
 if "%PRESET%"=="" set "PRESET=release"
 set "BUILD_NAME=%~2"
@@ -8,10 +8,22 @@ set "TARGET_ARGS="
 if not "%~3"=="" set "TARGET_ARGS=--target %~3"
 set "BUILD_JOBS=%NUMBER_OF_PROCESSORS%"
 if not "%PT_BUILD_JOBS%"=="" set "BUILD_JOBS=%PT_BUILD_JOBS%"
-set "VSDIR=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools"
+set "VSDIR="
+for /f "usebackq delims=" %%I in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VSDIR=%%I"
+if "%VSDIR%"=="" set "VSDIR=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools"
 set "PATH=%SystemRoot%\system32;%SystemRoot%;%SystemRoot%\System32\Wbem;%SystemRoot%\System32\WindowsPowerShell\v1.0;C:\Program Files\Git\cmd;%ProgramFiles(x86)%\Microsoft Visual Studio\Installer"
 call "%VSDIR%\VC\Auxiliary\Build\vcvars64.bat" >nul || exit /b 1
+rem Hosted runners can retain VULKAN_SDK from an older, removed SDK.  Select an
+rem installed SDK with glslc instead of passing a stale path to FindVulkan.
+if not "%VULKAN_SDK%"=="" if not exist "%VULKAN_SDK%\Bin\glslc.exe" set "VULKAN_SDK="
+if "%VULKAN_SDK%"=="" if exist "C:\VulkanSDK\" (
+  for /f "delims=" %%I in ('dir /b /ad /o-n "C:\VulkanSDK"') do if "!VULKAN_SDK!"=="" set "VULKAN_SDK=C:\VulkanSDK\%%I"
+)
 if "%VULKAN_SDK%"=="" set "VULKAN_SDK=C:\VulkanSDK\1.4.357.0"
+if not exist "%VULKAN_SDK%\Bin\glslc.exe" (
+  echo Vulkan SDK with glslc was not found at "%VULKAN_SDK%"
+  exit /b 4
+)
 set "PATH=C:\Program Files\LLVM\bin;%VULKAN_SDK%\Bin;%PATH%"
 cd /d "%~dp0.." || exit /b 1
 set "BUILD_DIR=build\%BUILD_NAME%"

@@ -191,8 +191,14 @@ UiFont* UiAssets::Font(UiFontType type, int language) {
         }
         std::vector<std::vector<uint8_t>> mips;
         if (language >= 7) {
-            const char* family = language == 8 ? "Noto Sans SC" : language == 9 ? (type == UiFontType::Movie ? "Noto Naskh Arabic" : "Noto Kufi Arabic") : "Noto Sans";
-            if (!font.font.LoadUnicodeFont(family, localized::Characters(language), language == 9, &error)) {
+            const char* family = language == 8 ? "Noto Sans SC" : language == 14 ? "Noto Sans KR" : language == 9 ? (type == UiFontType::Movie ? "Noto Naskh Arabic" : "Noto Kufi Arabic") : "Noto Sans";
+            // The original uses a sturdy menu face and a noticeably lighter movie/subtitle face. Keep the Korean family unified,
+            // but select its Medium instance for menus and Light instance for subtitles.
+            const int weight = language == 14 ? (type == UiFontType::Movie ? 300 : 500) : 400;
+            // Korean subtitle/movie text uses a sampled outline. Give its dynamically rasterized glyphs a transparent rim so
+            // outline samples remain inside the glyph image instead of being clipped at the bitmap boundary.
+            if (!font.font.LoadUnicodeFont(family, localized::Characters(language), language == 9, &error, weight,
+                                           language == 14 && type == UiFontType::Movie)) {
                 LogError("ui: Unicode font {}: {}", family, error); fonts_[index].reset(); return nullptr;
             }
         } else if (language != kJapanese) font.font.AddTurkishGlyphs();
@@ -254,10 +260,13 @@ UiFont* UiAssets::FontCovering(UiFontType type, int language, std::string_view t
     auto data = vfs_->ReadFile(kFontFiles[file_index]);
     std::string error;
     const char* family = language == 8 || language == kJapanese ? "Noto Sans SC"
+                         : language == 14                        ? "Noto Sans KR"
                          : language == 9                         ? (type == UiFontType::Movie ? "Noto Naskh Arabic" : "Noto Kufi Arabic")
                                                                  : "Noto Sans";
+    const int weight = language == 14 ? (type == UiFontType::Movie ? 300 : 500) : 400;
     if (!data || !made->font.Parse(*data, &error) ||
-        !made->font.LoadUnicodeFont(family, localized::Characters(language) + std::string(text), language == 9, &error)) {
+        !made->font.LoadUnicodeFont(family, localized::Characters(language) + std::string(text), language == 9, &error, weight,
+                                    language == 14 && type == UiFontType::Movie)) {
         LogError("ui: a font covering the text in language {} ({}): {}", language, family, error);
         covering_fonts_[key] = nullptr;
         return base;

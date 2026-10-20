@@ -66,6 +66,7 @@ struct UifNodeState {
     std::vector<UifInlinePicture> inline_pictures;
     std::optional<UiFontType> font_type;
     std::optional<int> font_language;
+    std::optional<float> font_scale;
     std::optional<glm::vec3> anim_translate;
     std::optional<glm::vec3> anim_scale;
     std::optional<glm::vec4> anim_color;

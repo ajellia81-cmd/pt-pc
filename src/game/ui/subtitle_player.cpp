@@ -12,7 +12,7 @@
 namespace pt::game {
 namespace {
 
-constexpr const char* kSubtitleLanguages[SubtitlePlayer::kLanguageCount] = {"Eng", "Fre", "Ger", "Spa", "Jpn", "Ita", "Por", "Tur", "Zhs", "Ara", "Rus", "Ukr", "Ces", "Pol"};
+constexpr const char* kSubtitleLanguages[SubtitlePlayer::kLanguageCount] = {"Eng", "Fre", "Ger", "Spa", "Jpn", "Ita", "Por", "Tur", "Zhs", "Ara", "Rus", "Ukr", "Ces", "Pol", "Kor"};
 
 constexpr int kPlayingPriority[8] = {255, 0, 0, 10, 20, 30, 40, 0};
 constexpr float kRangeRadius[4] = {0.0f, 20.0f, 40.0f, 70.0f};
@@ -196,6 +196,9 @@ std::vector<SubtitlePlayer::TranscriptLine> SubtitlePlayer::Transcript(std::stri
         std::string text = ValidUtf8(line.text) ? line.text : Cp1252ToUtf8(line.text);
         while (!text.empty() && (text.back() == '\0' || text.back() == '\n' || text.back() == ' ')) text.pop_back();
         std::replace(text.begin(), text.end(), '\n', ' ');
+        // Museum transcripts flatten subtitle line breaks.  Translation entries commonly keep a space on both
+        // sides of a visual line break ("에서 | 시간제"), which otherwise becomes a visible double space here.
+        text.erase(std::unique(text.begin(), text.end(), [](char a, char b) { return a == ' ' && b == ' '; }), text.end());
         out.push_back({line.start_seconds, line.end_seconds, std::move(text)});
     }
     return out;

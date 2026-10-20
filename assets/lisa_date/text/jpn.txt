@@ -6,6 +6,7 @@ ui_auto = オート
 ui_skip = スキップ
 ui_affection = 好感度
 ui_leave_hold = 長押しでデートをやめる
+ui_title = リサとコーヒー
 title_1 = 第1章：ブラックコーヒー
 title_2 = 第2章：砂糖ふたつ
 title_3 = 第3章：ラストオーダー

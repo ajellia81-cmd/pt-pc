@@ -19,7 +19,7 @@
 #include "engine/render/upscale/frame_generation.h"
 #include "engine/render/upscale/streamline.h"
 #include "engine/render/upscale/upscale_platform.h"
-#ifdef _WIN32
+#if defined(_WIN32) && defined(PT_D3D12_GAME)
 #include "engine/render/d3d12/backend/d3d12_neural.h"
 #endif
 
@@ -820,7 +820,7 @@ const NeuralRenderingSupport* UpscaleHost::NativeNeuralStatus() const {
 }
 
 bool UpscaleHost::RecordNativeNeural(const UpscaleDispatch& dispatch) {
-#ifdef _WIN32
+#if defined(_WIN32) && defined(PT_D3D12_GAME)
     if (!d3d12_device_ || !nr_native::Enabled()) return false;
     if (!dispatch.neural_enabled && !native_neural_) return true;
     if (!native_neural_failure_.reason.empty()) return false;

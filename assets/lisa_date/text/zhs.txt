@@ -6,6 +6,7 @@ ui_auto = 自动
 ui_skip = 跳过
 ui_affection = 好感度
 ui_leave_hold = 长按离开约会
+ui_title = 与丽莎喝咖啡
 title_1 = 第一章：黑咖啡
 title_2 = 第二章：两块糖
 title_3 = 第三章：最后一杯

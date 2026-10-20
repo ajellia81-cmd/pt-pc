@@ -6,6 +6,7 @@ ui_auto = Auto
 ui_skip = Überspringen
 ui_affection = Zuneigung
 ui_leave_hold = Halten, um das Date zu verlassen
+ui_title = Kaffee mit Lisa
 title_1 = Teil 1: Schwarzer Kaffee
 title_2 = Teil 2: Zwei Stück Zucker
 title_3 = Teil 3: Letzte Runde
