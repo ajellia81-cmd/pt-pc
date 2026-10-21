@@ -67,13 +67,13 @@ LRESULT CALLBACK RenderingApiDialogProc(HWND window, UINT message, WPARAM wparam
     case WM_CREATE: {
         if (!dialog) return -1;
         dialog->font = MessageFont(dialog->owns_font);
-        const HWND icon = CreateWindowW(L"STATIC", nullptr, WS_CHILD | WS_VISIBLE | SS_ICON, 24, 20, 40, 40, window, nullptr, nullptr, nullptr);
+        const HWND icon = CreateWindowW(L"STATIC", nullptr, WS_CHILD | WS_VISIBLE | SS_ICON, 24, 24, 40, 40, window, nullptr, nullptr, nullptr);
         SendMessageW(icon, STM_SETICON, reinterpret_cast<WPARAM>(LoadIconW(nullptr, MAKEINTRESOURCEW(32516))), 0);
-        const HWND text = CreateWindowW(L"STATIC", dialog->message.c_str(), WS_CHILD | WS_VISIBLE | SS_LEFT, 82, 18, 500, 44, window, nullptr, nullptr, nullptr);
+        const HWND text = CreateWindowW(L"STATIC", dialog->message.c_str(), WS_CHILD | WS_VISIBLE | SS_LEFT, 82, 18, 500, 60, window, nullptr, nullptr, nullptr);
         const HWND directx = CreateWindowW(L"BUTTON", L"DirectX 12", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
-                                            272, 78, 142, 28, window, reinterpret_cast<HMENU>(kDirectXButton), nullptr, nullptr);
+                                            220, 96, 170, 36, window, reinterpret_cast<HMENU>(kDirectXButton), nullptr, nullptr);
         const HWND vulkan = CreateWindowW(L"BUTTON", L"Vulkan", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON,
-                                           430, 78, 142, 28, window, reinterpret_cast<HMENU>(kVulkanButton), nullptr, nullptr);
+                                           410, 96, 170, 36, window, reinterpret_cast<HMENU>(kVulkanButton), nullptr, nullptr);
         for (const HWND control : {icon, text, directx, vulkan}) {
             SendMessageW(control, WM_SETFONT, reinterpret_cast<WPARAM>(dialog->font), TRUE);
         }
@@ -124,7 +124,7 @@ AskAnswer AskRenderingApiWindows(std::string_view title, std::string_view messag
     if (restore_owner) EnableWindow(owner, FALSE);
     // The requested size is the client area: it must include both the explanation
     // and the buttons even when Windows adds a large caption at high DPI.
-    RECT client_bounds{0, 0, 620, 125};
+    RECT client_bounds{0, 0, 620, 150};
     AdjustWindowRectEx(&client_bounds, kDialogStyle, FALSE, kDialogExStyle);
     HWND window = CreateWindowExW(kDialogExStyle, kClassName, dialog.title.c_str(), kDialogStyle,
                                   CW_USEDEFAULT, CW_USEDEFAULT, client_bounds.right - client_bounds.left,

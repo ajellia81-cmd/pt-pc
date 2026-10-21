@@ -21,20 +21,20 @@ LRESULT CALLBACK DialogProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
     case WM_CREATE: {
         const HFONT font = MessageFont();
         const HWND icon = CreateWindowW(L"STATIC", nullptr, WS_CHILD | WS_VISIBLE | SS_ICON,
-                                        24, 20, 40, 40, window, nullptr, nullptr, nullptr);
+                                        24, 24, 40, 40, window, nullptr, nullptr, nullptr);
         SendMessageW(icon, STM_SETICON,
                      reinterpret_cast<WPARAM>(LoadIconW(nullptr, MAKEINTRESOURCEW(32516))), 0);
         const HWND text = CreateWindowW(L"STATIC",
                                         L"그래픽 API를 선택하세요.\n나중에 설정에서 바꿀 수 있습니다.",
-                                        WS_CHILD | WS_VISIBLE | SS_LEFT, 82, 18, 500, 44,
+                                        WS_CHILD | WS_VISIBLE | SS_LEFT, 82, 18, 500, 60,
                                         window, nullptr, nullptr, nullptr);
         const HWND directx = CreateWindowW(L"BUTTON", L"DirectX 12",
                                            WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
-                                           272, 78, 142, 28, window,
+                                           220, 96, 170, 36, window,
                                            reinterpret_cast<HMENU>(kDirectXButton), nullptr, nullptr);
         const HWND vulkan = CreateWindowW(L"BUTTON", L"Vulkan",
                                           WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON,
-                                          430, 78, 142, 28, window,
+                                          410, 96, 170, 36, window,
                                           reinterpret_cast<HMENU>(kVulkanButton), nullptr, nullptr);
         SendMessageW(icon, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
         SendMessageW(text, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
@@ -76,7 +76,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     window_class.lpszClassName = kClassName;
     if (!RegisterClassW(&window_class)) return 1;
 
-    RECT client_bounds{0, 0, 620, 125};
+    RECT client_bounds{0, 0, 620, 150};
     AdjustWindowRectEx(&client_bounds, kDialogStyle, FALSE, kDialogExStyle);
     HWND window = CreateWindowExW(kDialogExStyle, kClassName, L"렌더링 API", kDialogStyle,
                                   CW_USEDEFAULT, CW_USEDEFAULT,
