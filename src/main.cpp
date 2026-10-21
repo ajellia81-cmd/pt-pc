@@ -7542,6 +7542,11 @@ int main(int argc, char** argv) {
         app.options.width = static_cast<uint32_t>(app.settings.display.width);
         app.options.height = static_cast<uint32_t>(app.settings.display.height);
         app.options.vsync = app.settings.display.vsync;
+        // Keep the effective values next to the chosen renderer in pt.log.  This
+        // makes a DX12 frame-pacing report diagnosable without guessing whether a
+        // saved setting, the menu cap, or the DXGI present path supplied the cap.
+        pt::LogInfo("display: startup API {}, V-Sync {}, FPS limit {}", pt::RenderingApiName(app.rendering_api),
+                    app.settings.display.vsync ? "on" : "off", app.settings.display.fps_limit);
         if (const std::string vulkan = pt::vk::VulkanLibraryPath(); !vulkan.empty()) {
             SDL_SetHint(SDL_HINT_VULKAN_LIBRARY, vulkan.c_str());
         }
