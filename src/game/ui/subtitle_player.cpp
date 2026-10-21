@@ -61,9 +61,12 @@ std::string Cp1252ToUtf8(std::string_view text) {
 // language.  Keep a display-time Korean lookup too: it is deliberately
 // independent of package parsing so an older or modded English subtitle
 // package cannot silently turn a Korean selection back into English.
-std::string KoreanLine(uint32_t key, size_t line, std::string_view fallback) {
+std::string KoreanLine(uint32_t key, size_t line, size_t expected_lines, std::string_view fallback) {
     for (const korean::Subtitle& subtitle : korean::kSubtitles) {
-        if (subtitle.key != key || line >= subtitle.lines.size()) continue;
+        // A translation can use a different number of on-screen cues than a
+        // source package.  Never shift every later cue by applying such a
+        // table by index; SubtitleTable keeps the source line in that case.
+        if (subtitle.key != key || subtitle.lines.size() != expected_lines || line >= subtitle.lines.size()) continue;
         std::string text(subtitle.lines.begin()[line]);
         std::replace(text.begin(), text.end(), '|', '\n');
         return text;
@@ -254,7 +257,7 @@ bool SubtitlePlayer::Current(std::string_view hidden_id, SubtitleView& out) cons
             out.key = best->key;
             out.id = best->id;
             const std::string text = ValidUtf8(line.text) ? line.text : Cp1252ToUtf8(line.text);
-            out.text = language_ == 14 ? KoreanLine(best->key, index, text) : text;
+            out.text = language_ == 14 ? KoreanLine(best->key, index, entry->lines.size(), text) : text;
             out.category = entry->category;
             return !out.text.empty();
         }

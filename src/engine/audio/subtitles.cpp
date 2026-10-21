@@ -63,11 +63,14 @@ uint64_t SubtitleTable::MarkerKey(std::string_view label) {
 bool SubtitleTable::Load(Vfs& vfs, std::string_view language, std::span<const std::vector<uint8_t>> sab_tables, std::string* error) {
     const std::string lang = NormalizeLanguage(language);
     // These languages use the English timing/package data and replace only the
-    // displayed lines with the port's translated table. Korean follows the same
-    // path; there is no Kor subtitle package in the original game data.
+    // displayed lines with the port's translated table.  Korean is translated
+    // from Japanese, so retain the original Japanese line timing rather than
+    // borrowing the English voice table (the two radio broadcasts do not
+    // always split a sentence at the same instant).
     std::string source = (lang == "Tur" || lang == "Zhs" || lang == "Ara" || lang == "Rus" || lang == "Ukr" || lang == "Ces" || lang == "Pol" || lang == "Kor")
                              ? "Eng"
                              : lang;
+    if (lang == "Kor") source = "Jpn";
     if (source != "Eng" && !vfs.Archive().Contains(Vfs::ToArchivePath(PackagePath(source)))) {
         LogWarn("subtitles: {} missing, falling back to English", PackagePath(source));
         source = "Eng";
