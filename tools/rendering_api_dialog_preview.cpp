@@ -28,9 +28,10 @@ LRESULT CALLBACK DialogProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
                                           WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON,
                                           430, 98, 142, 30, window,
                                           reinterpret_cast<HMENU>(kVulkanButton), nullptr, nullptr);
-        for (const HWND control : {icon, text, directx, vulkan}) {
-            SendMessageW(control, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
-        }
+        SendMessageW(icon, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
+        SendMessageW(text, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
+        SendMessageW(directx, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
+        SendMessageW(vulkan, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
         return 0;
     }
     case WM_COMMAND:
