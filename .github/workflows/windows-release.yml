@@ -2,7 +2,10 @@ name: Windows x64 Release
 
 on:
   push:
-    branches: [main, feature/windows-spatial-atmos]
+    # The clean overlay branch starts from the unmodified v1.0.7 source and
+    # packages only the rebuilt executable plus Korean-only assets over the
+    # official portable release.
+    branches: [main, feature/windows-spatial-atmos, feature/original-overlay-atmos-korean]
   pull_request:
     branches: [main]
   workflow_dispatch:
