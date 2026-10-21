@@ -6,7 +6,6 @@ ui_auto = Otomatik
 ui_skip = Atla
 ui_affection = Sevgi
 ui_leave_hold = Buluşmadan ayrılmak için basılı tut
-ui_title = Lisa ile Kahve
 title_1 = Bölüm 1: Sade Kahve
 title_2 = Bölüm 2: İki Şeker
 title_3 = Bölüm 3: Son Sipariş

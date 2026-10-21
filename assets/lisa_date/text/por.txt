@@ -6,7 +6,6 @@ ui_auto = Auto
 ui_skip = Pular
 ui_affection = Afeto
 ui_leave_hold = Segure para sair do encontro
-ui_title = Café com Lisa
 title_1 = Parte 1: Café puro
 title_2 = Parte 2: Duas colheres de açúcar
 title_3 = Parte 3: Última rodada

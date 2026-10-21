@@ -6,7 +6,6 @@ ui_auto = Auto
 ui_skip = Skip
 ui_affection = Affection
 ui_leave_hold = Hold to leave the date
-ui_title = Coffee with Lisa
 title_1 = Part 1: Black Coffee
 title_2 = Part 2: Two Sugars
 title_3 = Part 3: Last Call

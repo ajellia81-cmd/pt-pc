@@ -6,7 +6,6 @@ ui_auto = Auto
 ui_skip = Pomiń
 ui_affection = Sympatia
 ui_leave_hold = Przytrzymaj, aby opuścić randkę
-ui_title = Kawa z Lisą
 title_1 = Część 1: Czarna kawa
 title_2 = Część 2: Dwie łyżeczki cukru
 title_3 = Część 3: Ostatnie zamówienie

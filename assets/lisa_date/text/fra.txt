@@ -6,7 +6,6 @@ ui_auto = Auto
 ui_skip = Passer
 ui_affection = Affection
 ui_leave_hold = Maintenir pour quitter le rendez-vous
-ui_title = Un café avec Lisa
 title_1 = Partie 1 : Café noir
 title_2 = Partie 2 : Deux sucres
 title_3 = Partie 3 : Dernière commande
