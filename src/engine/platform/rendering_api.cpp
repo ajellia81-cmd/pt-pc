@@ -42,6 +42,8 @@ std::wstring Wide(std::string_view text) {
 
 constexpr int kDirectXButton = 1;
 constexpr int kVulkanButton = 2;
+constexpr DWORD kDialogStyle = WS_CAPTION | WS_SYSMENU | WS_POPUP | WS_BORDER;
+constexpr DWORD kDialogExStyle = WS_EX_DLGMODALFRAME;
 
 LRESULT CALLBACK RenderingApiDialogProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
     auto* dialog = reinterpret_cast<RenderingApiDialog*>(GetWindowLongPtrW(window, GWLP_USERDATA));
@@ -75,6 +77,10 @@ LRESULT CALLBACK RenderingApiDialogProc(HWND window, UINT message, WPARAM wparam
     case WM_CLOSE:
         DestroyWindow(window);
         return 0;
+    case WM_CTLCOLORSTATIC:
+        SetBkMode(reinterpret_cast<HDC>(wparam), TRANSPARENT);
+        SetTextColor(reinterpret_cast<HDC>(wparam), GetSysColor(COLOR_WINDOWTEXT));
+        return reinterpret_cast<LRESULT>(GetSysColorBrush(COLOR_BTNFACE));
     }
     return DefWindowProcW(window, message, wparam, lparam);
 }
@@ -90,14 +96,20 @@ AskAnswer AskRenderingApiWindows(std::string_view title, std::string_view messag
     window_class.hInstance = instance;
     window_class.hCursor = LoadCursorW(nullptr, MAKEINTRESOURCEW(32512));
     window_class.hIcon = LoadIconW(nullptr, MAKEINTRESOURCEW(32516));
+    window_class.hbrBackground = GetSysColorBrush(COLOR_BTNFACE);
     window_class.lpszClassName = kClassName;
     if (!RegisterClassW(&window_class) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) return AskAnswer::NotShown;
 
     HWND owner = GetActiveWindow();
     const bool restore_owner = owner && IsWindowEnabled(owner);
     if (restore_owner) EnableWindow(owner, FALSE);
-    HWND window = CreateWindowExW(WS_EX_DLGMODALFRAME, kClassName, dialog.title.c_str(), WS_CAPTION | WS_SYSMENU | WS_POPUP | WS_BORDER,
-                                  CW_USEDEFAULT, CW_USEDEFAULT, 620, 170, owner, nullptr, instance, &dialog);
+    // The requested size is the client area: it must include both the explanation
+    // and the buttons even when Windows adds a large caption at high DPI.
+    RECT client_bounds{0, 0, 620, 170};
+    AdjustWindowRectEx(&client_bounds, kDialogStyle, FALSE, kDialogExStyle);
+    HWND window = CreateWindowExW(kDialogExStyle, kClassName, dialog.title.c_str(), kDialogStyle,
+                                  CW_USEDEFAULT, CW_USEDEFAULT, client_bounds.right - client_bounds.left,
+                                  client_bounds.bottom - client_bounds.top, owner, nullptr, instance, &dialog);
     if (!window) {
         if (restore_owner) EnableWindow(owner, TRUE);
         return AskAnswer::NotShown;
