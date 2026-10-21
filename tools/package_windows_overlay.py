@@ -10,6 +10,7 @@ and localized assets to be rebuilt from source.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import shutil
 import tempfile
 import zipfile
@@ -43,6 +44,14 @@ def require_baseline_features(files: set[str]) -> None:
         raise RuntimeError("baseline lacks required original DX12/DLSS 5 files: " + ", ".join(sorted(missing)))
 
 
+def sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--baseline", type=Path, required=True)
@@ -70,18 +79,39 @@ def main() -> None:
         }
         require_baseline_features(baseline_files)
 
+        # This is deliberately a tiny overlay.  The official archive supplies the
+        # DX12 renderer, DLSS 5/Frame Generation DLLs, shader cache and every
+        # upstream data file.  Do not replace those with CI build by-products.
+        before = {entry: sha256(runtime / entry) for entry in baseline_files}
+
         shutil.copy2(exe, runtime / "pt.exe")
-        for sidecar in ("pt_release.exe.upscalers.json",):
-            source = args.build / sidecar
-            if source.is_file():
-                shutil.copy2(source, runtime / sidecar.replace("pt_release", "pt"))
-        copy_tree(args.build / "fonts", runtime / "fonts")
-        copy_tree(args.build / "lisa_date", runtime / "lisa_date")
-        copy_tree(args.build / "licenses", runtime / "licenses")
+        font = args.build / "fonts" / "NotoSansKR.ttf"
+        if not font.is_file():
+            raise RuntimeError(f"missing Korean font: {font}")
+        (runtime / "fonts").mkdir(parents=True, exist_ok=True)
+        shutil.copy2(font, runtime / "fonts" / font.name)
+        notice = args.build / "licenses" / "OFL-NotoSansKR.txt"
+        if notice.is_file():
+            (runtime / "licenses").mkdir(parents=True, exist_ok=True)
+            shutil.copy2(notice, runtime / "licenses" / notice.name)
+        korean_text = args.build / "lisa_date" / "text" / "kor.txt"
+        if not korean_text.is_file():
+            raise RuntimeError(f"missing Korean Coffee with Lisa text: {korean_text}")
+        (runtime / "lisa_date" / "text").mkdir(parents=True, exist_ok=True)
+        shutil.copy2(korean_text, runtime / "lisa_date" / "text" / "kor.txt")
 
         missing = [entry for entry in baseline_files if not (runtime / entry).is_file()]
         if missing:
             raise RuntimeError("overlay removed baseline runtime files: " + ", ".join(sorted(missing)))
+
+        changed = {
+            entry for entry in baseline_files
+            if sha256(runtime / entry) != before[entry]
+        }
+        allowed_changed = {"pt.exe"}
+        unexpected = changed - allowed_changed
+        if unexpected:
+            raise RuntimeError("overlay changed original runtime files outside pt.exe: " + ", ".join(sorted(unexpected)))
 
         args.out.mkdir(parents=True, exist_ok=True)
         archive_base = args.out / "P.T.PC.Port-windows-x64-Release"

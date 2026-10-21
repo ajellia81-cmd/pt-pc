@@ -2,7 +2,7 @@ name: Windows x64 Release
 
 on:
   push:
-    branches: [main, feature/windows-spatial-atmos]
+    branches: [main, feature/strict-v107-korean-atmos]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -91,15 +91,25 @@ jobs:
             )
           )
 
-      - name: Download original 1.0.6 Windows runtime
+      - name: Verify DX12 frame-generation source path remains intact
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          Invoke-WebRequest -Uri 'https://github.com/LoreanXavier/pt-pc/releases/download/v1.0.6/P.T.PC.Port-portable-windows.zip' -OutFile baseline-windows.zip
-          if ((Get-Item baseline-windows.zip).Length -lt 400MB) { throw 'The 1.0.6 baseline download is incomplete' }
+          $scene = Get-Content 'src/engine/render/upscale/scene_upscale.cpp' -Raw
+          if ($scene -match 'defined\(PT_D3D12_GAME\)') { throw 'The engine library must not gate DX12 frame generation on the executable-only PT_D3D12_GAME macro.' }
+          if ($scene -notmatch 'UpdateFrameGenerationD3D12') { throw 'DX12 frame-generation update path is missing.' }
+          $upscale = Get-Content 'src/engine/render/upscale/upscale.cpp' -Raw
+          if ($upscale -match 'defined\(PT_D3D12_GAME\)') { throw 'The engine library must not gate native neural rendering on PT_D3D12_GAME.' }
+
+      - name: Download original 1.0.7 Windows runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Invoke-WebRequest -Uri 'https://github.com/LoreanXavier/pt-pc/releases/download/v1.0.7/P.T.PC.Port-portable-windows.zip' -OutFile baseline-windows.zip
+          if ((Get-Item baseline-windows.zip).Length -lt 400MB) { throw 'The 1.0.7 baseline download is incomplete' }
           $entries = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path baseline-windows.zip)).Entries.FullName
           foreach ($entry in @('D3D12/D3D12Core.dll', 'pt-native-nvngx.dll', 'nvngx_dlss.dll', 'nvngx_dlssd.dll', 'nvngx_dlssg.dll', 'shaders/forward.frag.dxil')) {
-            if (-not ($entries | Where-Object { $_ -like "*/$entry" })) { throw "The upstream 1.0.6 baseline is missing $entry" }
+            if (-not ($entries | Where-Object { $_ -like "*/$entry" })) { throw "The upstream 1.0.7 baseline is missing $entry" }
           }
 
       - name: Assemble localized runtime without dropping original files

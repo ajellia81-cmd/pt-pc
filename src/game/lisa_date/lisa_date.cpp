@@ -1235,7 +1235,11 @@ void LisaDate::DrawTransition(ui::UiBatch& batch, const UiCanvas& canvas, glm::v
                 batch.Quad(canvas.ToTarget(middle - half), canvas.ToTarget(middle + half), {0, 0}, {1, 1}, glm::vec4(1.0f, 1.0f, 1.0f, logo),
                            ui::UiDrawParams::Plain(logo_.texture), ui::UiShade::Material, ui::UiBlend::Alpha);
             } else {
-                DrawLabel(batch, canvas, text_.Get("ui_title"), middle - glm::vec2(500.0f, 60.0f), middle + glm::vec2(500.0f, 60.0f), 64.0f,
+                // The portable baseline keeps every upstream language file byte-for-byte.
+                // Only the added Korean file needs a localized title; all existing
+                // languages retain the original literal title and its timing/layout.
+                const char* title = settings_.language == 14 ? text_.Get("ui_title").c_str() : "Coffee with Lisa";
+                DrawLabel(batch, canvas, title, middle - glm::vec2(500.0f, 60.0f), middle + glm::vec2(500.0f, 60.0f), 64.0f,
                           glm::vec4(glm::vec3(kRose), logo), ui::TextAlign::Center);
             }
         }
