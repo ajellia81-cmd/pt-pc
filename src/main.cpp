@@ -7566,7 +7566,9 @@ int main(int argc, char** argv) {
     pt::RendererSettings settings;
     settings.headless = options.headless;
     settings.validation = options.validation;
-    settings.vsync = options.vsync;
+    // The renderer must start with the persisted display choice.  `options.vsync`
+    // only represents the command-line override and otherwise remains true.
+    settings.vsync = app.settings.display.vsync;
     settings.hdr = app.settings.display.hdr;
     settings.hdr_paper_white = app.settings.display.hdr_paper_white;
     settings.hdr_peak = app.settings.display.hdr_peak;
