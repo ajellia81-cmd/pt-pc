@@ -26,7 +26,7 @@ LRESULT CALLBACK DialogProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
                      reinterpret_cast<WPARAM>(LoadIconW(nullptr, MAKEINTRESOURCEW(32516))), 0);
         const HWND text = CreateWindowW(L"STATIC",
                                         L"그래픽 API를 선택하세요.\n나중에 설정에서 바꿀 수 있습니다.",
-                                        WS_CHILD | WS_VISIBLE | SS_LEFT, 82, 18, 500, 60,
+                                        WS_CHILD | WS_VISIBLE | SS_LEFT, 106, 18, 500, 60,
                                         window, nullptr, nullptr, nullptr);
         const HWND directx = CreateWindowW(L"BUTTON", L"DirectX 12",
                                            WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
