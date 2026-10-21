@@ -69,7 +69,7 @@ LRESULT CALLBACK RenderingApiDialogProc(HWND window, UINT message, WPARAM wparam
         dialog->font = MessageFont(dialog->owns_font);
         const HWND icon = CreateWindowW(L"STATIC", nullptr, WS_CHILD | WS_VISIBLE | SS_ICON, 24, 24, 40, 40, window, nullptr, nullptr, nullptr);
         SendMessageW(icon, STM_SETICON, reinterpret_cast<WPARAM>(LoadIconW(nullptr, MAKEINTRESOURCEW(32516))), 0);
-        const HWND text = CreateWindowW(L"STATIC", dialog->message.c_str(), WS_CHILD | WS_VISIBLE | SS_LEFT, 82, 18, 500, 60, window, nullptr, nullptr, nullptr);
+        const HWND text = CreateWindowW(L"STATIC", dialog->message.c_str(), WS_CHILD | WS_VISIBLE | SS_LEFT, 106, 18, 500, 60, window, nullptr, nullptr, nullptr);
         const HWND directx = CreateWindowW(L"BUTTON", L"DirectX 12", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
                                             220, 96, 170, 36, window, reinterpret_cast<HMENU>(kDirectXButton), nullptr, nullptr);
         const HWND vulkan = CreateWindowW(L"BUTTON", L"Vulkan", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON,
