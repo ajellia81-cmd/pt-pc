@@ -28,6 +28,7 @@ struct RenderingApiDialog {
     std::wstring title;
     std::wstring message;
     HFONT font = nullptr;
+    bool owns_font = false;
     int pressed = 0;
 };
 
@@ -45,6 +46,17 @@ constexpr int kVulkanButton = 2;
 constexpr DWORD kDialogStyle = WS_CAPTION | WS_SYSMENU | WS_POPUP | WS_BORDER;
 constexpr DWORD kDialogExStyle = WS_EX_DLGMODALFRAME;
 
+HFONT MessageFont(bool& owns_font) {
+    NONCLIENTMETRICSW metrics{sizeof(metrics)};
+    if (SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, sizeof(metrics), &metrics, 0)) {
+        if (HFONT font = CreateFontIndirectW(&metrics.lfMessageFont)) {
+            owns_font = true;
+            return font;
+        }
+    }
+    return static_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT));
+}
+
 LRESULT CALLBACK RenderingApiDialogProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
     auto* dialog = reinterpret_cast<RenderingApiDialog*>(GetWindowLongPtrW(window, GWLP_USERDATA));
     if (message == WM_NCCREATE) {
@@ -54,14 +66,14 @@ LRESULT CALLBACK RenderingApiDialogProc(HWND window, UINT message, WPARAM wparam
     switch (message) {
     case WM_CREATE: {
         if (!dialog) return -1;
-        dialog->font = static_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT));
-        const HWND icon = CreateWindowW(L"STATIC", nullptr, WS_CHILD | WS_VISIBLE | SS_ICON, 24, 29, 40, 40, window, nullptr, nullptr, nullptr);
+        dialog->font = MessageFont(dialog->owns_font);
+        const HWND icon = CreateWindowW(L"STATIC", nullptr, WS_CHILD | WS_VISIBLE | SS_ICON, 24, 20, 40, 40, window, nullptr, nullptr, nullptr);
         SendMessageW(icon, STM_SETICON, reinterpret_cast<WPARAM>(LoadIconW(nullptr, MAKEINTRESOURCEW(32516))), 0);
-        const HWND text = CreateWindowW(L"STATIC", dialog->message.c_str(), WS_CHILD | WS_VISIBLE | SS_LEFT, 82, 22, 500, 58, window, nullptr, nullptr, nullptr);
+        const HWND text = CreateWindowW(L"STATIC", dialog->message.c_str(), WS_CHILD | WS_VISIBLE | SS_LEFT, 82, 18, 500, 44, window, nullptr, nullptr, nullptr);
         const HWND directx = CreateWindowW(L"BUTTON", L"DirectX 12", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
-                                            272, 98, 142, 30, window, reinterpret_cast<HMENU>(kDirectXButton), nullptr, nullptr);
+                                            272, 78, 142, 28, window, reinterpret_cast<HMENU>(kDirectXButton), nullptr, nullptr);
         const HWND vulkan = CreateWindowW(L"BUTTON", L"Vulkan", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON,
-                                           430, 98, 142, 30, window, reinterpret_cast<HMENU>(kVulkanButton), nullptr, nullptr);
+                                           430, 78, 142, 28, window, reinterpret_cast<HMENU>(kVulkanButton), nullptr, nullptr);
         for (const HWND control : {icon, text, directx, vulkan}) {
             SendMessageW(control, WM_SETFONT, reinterpret_cast<WPARAM>(dialog->font), TRUE);
         }
@@ -77,6 +89,13 @@ LRESULT CALLBACK RenderingApiDialogProc(HWND window, UINT message, WPARAM wparam
     case WM_CLOSE:
         DestroyWindow(window);
         return 0;
+    case WM_NCDESTROY:
+        if (dialog && dialog->owns_font) {
+            DeleteObject(dialog->font);
+            dialog->font = nullptr;
+            dialog->owns_font = false;
+        }
+        break;
     case WM_CTLCOLORSTATIC:
         SetBkMode(reinterpret_cast<HDC>(wparam), TRANSPARENT);
         SetTextColor(reinterpret_cast<HDC>(wparam), GetSysColor(COLOR_WINDOWTEXT));
@@ -105,7 +124,7 @@ AskAnswer AskRenderingApiWindows(std::string_view title, std::string_view messag
     if (restore_owner) EnableWindow(owner, FALSE);
     // The requested size is the client area: it must include both the explanation
     // and the buttons even when Windows adds a large caption at high DPI.
-    RECT client_bounds{0, 0, 620, 170};
+    RECT client_bounds{0, 0, 620, 125};
     AdjustWindowRectEx(&client_bounds, kDialogStyle, FALSE, kDialogExStyle);
     HWND window = CreateWindowExW(kDialogExStyle, kClassName, dialog.title.c_str(), kDialogStyle,
                                   CW_USEDEFAULT, CW_USEDEFAULT, client_bounds.right - client_bounds.left,

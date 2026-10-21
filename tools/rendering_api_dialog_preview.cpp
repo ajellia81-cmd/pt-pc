@@ -8,25 +8,33 @@ constexpr int kVulkanButton = 2;
 constexpr DWORD kDialogStyle = WS_CAPTION | WS_SYSMENU | WS_POPUP | WS_BORDER;
 constexpr DWORD kDialogExStyle = WS_EX_DLGMODALFRAME;
 
+HFONT MessageFont() {
+    NONCLIENTMETRICSW metrics{sizeof(metrics)};
+    if (SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, sizeof(metrics), &metrics, 0)) {
+        if (HFONT font = CreateFontIndirectW(&metrics.lfMessageFont)) return font;
+    }
+    return static_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT));
+}
+
 LRESULT CALLBACK DialogProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
     switch (message) {
     case WM_CREATE: {
-        const HFONT font = static_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT));
+        const HFONT font = MessageFont();
         const HWND icon = CreateWindowW(L"STATIC", nullptr, WS_CHILD | WS_VISIBLE | SS_ICON,
-                                        24, 29, 40, 40, window, nullptr, nullptr, nullptr);
+                                        24, 20, 40, 40, window, nullptr, nullptr, nullptr);
         SendMessageW(icon, STM_SETICON,
                      reinterpret_cast<WPARAM>(LoadIconW(nullptr, MAKEINTRESOURCEW(32516))), 0);
         const HWND text = CreateWindowW(L"STATIC",
                                         L"그래픽 API를 선택하세요.\n나중에 설정에서 바꿀 수 있습니다.",
-                                        WS_CHILD | WS_VISIBLE | SS_LEFT, 82, 22, 500, 58,
+                                        WS_CHILD | WS_VISIBLE | SS_LEFT, 82, 18, 500, 44,
                                         window, nullptr, nullptr, nullptr);
         const HWND directx = CreateWindowW(L"BUTTON", L"DirectX 12",
                                            WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
-                                           272, 98, 142, 30, window,
+                                           272, 78, 142, 28, window,
                                            reinterpret_cast<HMENU>(kDirectXButton), nullptr, nullptr);
         const HWND vulkan = CreateWindowW(L"BUTTON", L"Vulkan",
                                           WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON,
-                                          430, 98, 142, 30, window,
+                                          430, 78, 142, 28, window,
                                           reinterpret_cast<HMENU>(kVulkanButton), nullptr, nullptr);
         SendMessageW(icon, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
         SendMessageW(text, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
@@ -57,6 +65,7 @@ LRESULT CALLBACK DialogProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
 } // namespace
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
+    SetProcessDPIAware();
     constexpr wchar_t kClassName[] = L"PT_RenderingApiDialogPreview";
     WNDCLASSW window_class{};
     window_class.lpfnWndProc = DialogProc;
@@ -67,7 +76,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     window_class.lpszClassName = kClassName;
     if (!RegisterClassW(&window_class)) return 1;
 
-    RECT client_bounds{0, 0, 620, 170};
+    RECT client_bounds{0, 0, 620, 125};
     AdjustWindowRectEx(&client_bounds, kDialogStyle, FALSE, kDialogExStyle);
     HWND window = CreateWindowExW(kDialogExStyle, kClassName, L"렌더링 API", kDialogStyle,
                                   CW_USEDEFAULT, CW_USEDEFAULT,
