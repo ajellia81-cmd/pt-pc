@@ -224,7 +224,7 @@ inline constexpr Text kMenu[] = {
     {"pc_note_ao","표준은 원작의 화면 공간 앰비언트 오클루전입니다. 광선 추적은 장면 자체를 바탕으로 모서리와 물체 아래를 더 어둡게 합니다. 원작에는 없는 기능입니다."},
     {"pc_note_reflections","표준은 원래 스크린 스페이스 접지 반사입니다. 레이트레이싱은 화면 밖의 개체도 반영합니다. 실험적 특징."},
     {"pc_rt_ao","주변광 차폐"},
-    {"pc_anisotropy","이방성 여과"},
+    {"pc_anisotropy","이방성 필터링"},
     {"pc_enhanced_textures","향상된 텍스처"},
     {"pc_texture_preparing","생성 중"},
     {"pc_note_texture_tools_missing","향상된 텍스처 도구 또는 모델 파일이 없습니다. 휴대용 설치 패키지에서 texture-tools 폴더를 복구하고 다시 시도하십시오. 원래 텍스처는 영향을 받지 않습니다."},
