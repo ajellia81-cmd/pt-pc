@@ -3,13 +3,6 @@ name: Windows x64 Release
 on:
   push:
     branches: [main, feature/windows-spatial-atmos]
-    paths-ignore:
-      # Rendering API dialog changes are checked by the small preview workflow
-      # until their Windows layout has been approved.
-      - src/engine/platform/rendering_api.cpp
-      - tools/rendering_api_dialog_preview.cpp
-      - .github/workflows/rendering-api-dialog-preview.yml
-      - .github/workflows/windows-release.yml
   pull_request:
     branches: [main]
   workflow_dispatch:
