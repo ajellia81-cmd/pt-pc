@@ -4,6 +4,7 @@ on:
   push:
     branches: [feature/windows-spatial-atmos]
     paths:
+      - src/engine/platform/rendering_api.cpp
       - tools/rendering_api_dialog_preview.cpp
       - .github/workflows/rendering-api-dialog-preview.yml
   workflow_dispatch:
