@@ -1,6 +1,8 @@
 name: Build P.T. iPhone IPA
 on:
   workflow_dispatch:
+  push:
+    branches: [feature/ios-unsigned-build]
 permissions:
   contents: read
 jobs:
