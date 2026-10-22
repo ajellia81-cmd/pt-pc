@@ -1,10 +1,10 @@
-name: Monitor upstream pt-pc releases
+name: "Monitor upstream pt-pc releases"
 
-on:
+"on":
   schedule:
     # 09:17 Korea Standard Time, every day.
     - cron: '17 0 * * *'
-  workflow_dispatch:
+  workflow_dispatch: {}
 
 permissions:
   contents: read
