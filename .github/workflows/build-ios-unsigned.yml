@@ -45,11 +45,12 @@ jobs:
           replace(plist, '<key>UIApplicationSupportsIndirectInputEvents</key><true/>', '<key>UIApplicationSupportsIndirectInputEvents</key><true/><key>UIRequiresFullScreen</key><true/><key>UISupportedInterfaceOrientations~iphone</key><array><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>')
           icon = root / 'assets/apple/Assets.xcassets/AppIcon.appiconset'
           icon.mkdir(parents=True, exist_ok=True)
-          # This public build repository intentionally contains no game artwork.
-          # A neutral placeholder icon keeps the unsigned build self-contained.
-          import base64
-          (icon / 'Icon.png').write_bytes(base64.b64decode(
-              'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9xPvkAAAAASUVORK5CYII='))
+          # Use the public PC port's stock icon, never a private user icon.
+          import urllib.request
+          urllib.request.urlretrieve(
+              'https://raw.githubusercontent.com/ajellia81-cmd/pt-pc/5ca70171de21db51604002f2335ff72c29fde76f/assets/pt.icns',
+              icon / 'PC-Port.icns')
+          assert (icon / 'PC-Port.icns').stat().st_size > 1_000_000
           # Korean is a code-side subtitle overlay, matching the port's existing added
           # languages, with a dedicated Noto Sans KR font.
           korean = root / 'src/engine/core/korean_text.h'
@@ -123,7 +124,7 @@ jobs:
           assert 'lang == "Kor" ? 12' in subtitles.read_text()
           assert '"Kor"};' in subtitle_player_cpp.read_text()
           assert 'SDL_GAMEPAD_BUTTON_GUIDE' not in input_cpp.read_text()
-          print('Configured iPhone logical 956x440 points / native 2868x1320 pixels, neutral app icon, saved settings, fullscreen-only native rendering, and automatic touch hide.')
+          print('Configured iPhone logical 956x440 points / native 2868x1320 pixels, PC port icon, saved settings, fullscreen-only native rendering, and automatic touch hide.')
           
           
           
@@ -133,8 +134,13 @@ jobs:
           
           
           
-      - name: Normalize supplied app icon
-        run: sips -s format png -z 1024 1024 source/build/port-src/assets/apple/Assets.xcassets/AppIcon.appiconset/Icon.png --out source/build/port-src/assets/apple/Assets.xcassets/AppIcon.appiconset/Icon.png
+      - name: Convert public PC port icon for iPhone
+        run: |
+          ICON_DIR=source/build/port-src/assets/apple/Assets.xcassets/AppIcon.appiconset
+          sips -s format png "$ICON_DIR/PC-Port.icns" --out "$ICON_DIR/Icon.png"
+          sips -z 1024 1024 "$ICON_DIR/Icon.png" --out "$ICON_DIR/Icon.png"
+          rm "$ICON_DIR/PC-Port.icns"
+          sips -g pixelWidth -g pixelHeight "$ICON_DIR/Icon.png"
       - name: Build iOS MoltenVK
         run: |
           git clone https://github.com/KhronosGroup/MoltenVK.git moltenvk
