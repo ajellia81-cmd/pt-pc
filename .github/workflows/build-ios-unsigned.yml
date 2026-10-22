@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install build tools
-        run: brew install cmake ninja shaderc molten-vk vulkan-headers
+        run: brew install cmake ninja shaderc molten-vk vulkan-headers harfbuzz pkgconf
       - name: Fetch port source
         run: git clone --recurse-submodules --depth 1 https://github.com/buberlo/pt-ipad.git source
       - name: Repair malformed upstream icon patch
@@ -92,6 +92,14 @@ jobs:
           replace(subtitles, 'lang == "Rus" || lang == "Ukr") ? "Eng" : lang;', 'lang == "Rus" || lang == "Ukr" || lang == "Kor") ? "Eng" : lang;')
           replace(subtitles, 'lang == "Ara" ? 9 : lang == "Rus" ? 10 : lang == "Ukr" ? 11 : 0;', 'lang == "Ara" ? 9 : lang == "Rus" ? 10 : lang == "Ukr" ? 11 : lang == "Kor" ? 12 : 0;')
           replace(subtitles, 'case 10:translate(russian::kSubtitles);break;case 11:translate(ukrainian::kSubtitles);break;}', 'case 10:translate(russian::kSubtitles);break;case 11:translate(ukrainian::kSubtitles);break;case 12:translate(korean::kSubtitles);break;}')
+          unicode_font = root / 'src/engine/ui/unicode_font_harfbuzz.cpp'
+          replace(unicode_font, '    if (family == "Noto Sans SC") return "NotoSansSC.ttf";', '    if (family == "Noto Sans SC") return "NotoSansSC.ttf";\n    if (family == "Noto Sans KR") return "NotoSansKR.ttf";')
+          # Resolve the new selector key in every existing UI language.
+          korean_names = ['Korean', 'Coréen', 'Koreanisch', 'Coreano', '韓国語', 'Coreano', 'Coreano', 'Korece', '韩国语', 'الكورية', 'Корейский', 'Корейська', '한국어']
+          names_cpp = ', '.join('"' + name + '"' for name in korean_names)
+          replace(localized, 'inline std::string_view Menu(std::string_view key, int language) {', 'inline std::string_view Menu(std::string_view key, int language) {\n if (key == "op_sub_korean") {\n  static constexpr std::string_view names[] = {' + names_cpp + '};\n  return names[language >= 0 && language < 13 ? language : 0];\n }')
+          replace(localized, ' return out;', ' out += std::string(Menu("op_sub_korean", language));\n return out;')
+          assert 'return "NotoSansKR.ttf";' in unicode_font.read_text()
           main = root / 'src/main.cpp'
           replace(main, 'void ApplyFullscreen(App& app) {\n    if (!app.window) {\n        return;\n    }\n    const int mode = app.settings.display.fullscreen;\n    if (mode == 2) {\n        if (const SDL_DisplayMode* desktop = SDL_GetDesktopDisplayMode(SDL_GetDisplayForWindow(app.window))) {\n            SDL_SetWindowFullscreenMode(app.window, desktop);\n        }\n    } else {\n        SDL_SetWindowFullscreenMode(app.window, nullptr);\n    }\n    SDL_SetWindowFullscreen(app.window, mode != 0);\n}', 'void ApplyFullscreen(App& app) {\n    if (!app.window) {\n        return;\n    }\n#if PT_IOS\n    const bool fullscreen = app.settings.display.fullscreen != 0;\n    SDL_SetWindowFullscreenMode(app.window, nullptr);\n    SDL_SetWindowFullscreen(app.window, fullscreen);\n    if (fullscreen) {\n        int width = 0, height = 0;\n        if (SDL_GetWindowSizeInPixels(app.window, &width, &height) && width > 0 && height > 0) {\n            app.options.width = static_cast<uint32_t>(width);\n            app.options.height = static_cast<uint32_t>(height);\n            app.renderer.SetRenderExtent({app.options.width, app.options.height});\n        }\n    } else {\n        app.renderer.SetRenderExtent({1920, 1080});\n    }\n    return;\n#else\n    const int mode = app.settings.display.fullscreen;\n    if (mode == 2) {\n        if (const SDL_DisplayMode* desktop = SDL_GetDesktopDisplayMode(SDL_GetDisplayForWindow(app.window))) {\n            SDL_SetWindowFullscreenMode(app.window, desktop);\n        }\n    } else {\n        SDL_SetWindowFullscreenMode(app.window, nullptr);\n    }\n    SDL_SetWindowFullscreen(app.window, mode != 0);\n#endif\n}')
           replace(main, '        app.settings.display.fullscreen = 1;\n', '')
@@ -159,6 +167,27 @@ jobs:
         run: |
           cd source
           python3 tools/build_native.py ios --source build/port-src --moltenvk-root "$GITHUB_WORKSPACE/moltenvk-clean" --build-number 1
+      - name: Verify Korean text shaping and rasterization
+        shell: python
+        run: |
+          from pathlib import Path
+          import subprocess
+          import shlex
+          root = Path('source/build/port-src').resolve()
+          headers = list(Path('source').rglob('stb_truetype.h'))
+          assert headers, 'stb_truetype.h not found after native build'
+          probe = Path('korean-font-probe.cpp')
+          probe.write_text("#include \"engine/ui/ffnt.h\"\n#include \"engine/core/localized_text.h\"\n#include \"engine/core/resource_path.h\"\n#include <algorithm>\n#include <filesystem>\n#include <iostream>\n#include <stdexcept>\nnamespace pt { std::filesystem::path ExecutableDir() { return std::filesystem::current_path(); } }\nvoid require(bool value, const std::string& message) { if (!value) throw std::runtime_error(message); }\nint main() {\n for (int language=0; language<13; ++language) {\n  const auto label = pt::localized::Menu(\"op_sub_korean\", language);\n  require(!label.empty(), \"missing Korean selector label\");\n  if (language != 0) require(label != \"Korean\", \"untranslated Korean selector label\");\n }\n const auto text = pt::localized::Characters(12);\n require(text.find(\"한국어\") != std::string::npos, \"missing Korean atlas characters\");\n pt::ui::FfntFont font;\n std::string error;\n require(font.LoadUnicodeFont(\"Noto Sans KR\", text, false, &error), \"Korean font: \" + error);\n const auto codes = pt::ui::DecodeUtf8(\"한국어 옵션 자막\");\n for (auto code : codes) require(font.Find(code) != nullptr, \"missing Korean glyph\");\n const auto shaped = font.ShapeLine(codes, 0);\n require(!shaped.empty(), \"Korean shaping produced no glyphs\");\n bool visible=false;\n for (const auto& g : shaped) {\n  require(g.glyph != nullptr, \"shaped glyph absent from Korean atlas\");\n  for (int y=0; y<g.glyph->height; ++y)\n   for (int x=0; x<g.glyph->width; ++x) visible |= font.Coverage(*g.glyph, x, y) != 0;\n }\n require(visible, \"Korean glyphs are blank\");\n std::vector<std::vector<uint8_t>> mips;\n require(font.BuildAtlas(mips, 1, true), \"Korean atlas failed\");\n require(!mips.empty() && std::any_of(mips[0].begin(),mips[0].end(),[](auto p){return p!=0;}), \"Korean atlas is empty\");\n std::cout << \"PASS: 13 localized selector labels; Korean font loaded, shaped and rasterized; atlas \"\n           << font.AtlasWidth() << \"x\" << font.AtlasHeight() << \"\\n\";\n}\n")
+          flags = shlex.split(subprocess.check_output(['pkg-config', '--cflags', '--libs', 'harfbuzz'], text=True))
+          command = ['clang++', '-std=c++23', '-O2', '-I' + str(root / 'src'),
+                     '-I' + str(headers[0].resolve().parent),
+                     '-DPT_FONT_DIR="' + str(root / 'assets/fonts') + '"',
+                     str(probe), str(root / 'src/engine/ui/ffnt.cpp'),
+                     str(root / 'src/engine/ui/unicode_font.cpp'),
+                     str(root / 'src/engine/ui/unicode_font_harfbuzz.cpp'),
+                     '-o', 'korean-font-probe'] + flags
+          subprocess.run(command, check=True)
+          subprocess.run([str(Path('korean-font-probe').resolve())], check=True)
       - name: Package and validate unsigned IPA
         run: |
           mkdir -p package/Payload
