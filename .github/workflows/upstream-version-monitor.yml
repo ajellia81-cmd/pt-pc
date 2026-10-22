@@ -1,0 +1,45 @@
+name: Monitor upstream pt-pc releases
+
+on:
+  schedule:
+    # 09:17 Korea Standard Time, every day.
+    - cron: '17 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the latest upstream release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPSTREAM: LoreanXavier/pt-pc
+          TARGET: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="$(gh api "repos/${UPSTREAM}/releases/latest" --jq '.tag_name')"
+          title="Upstream ${tag} detected — prepare Korean + Atmos rebuild"
+          existing="$(gh issue list --repo "${TARGET}" --state all --search "\"${title}\" in:title" --json number --jq 'length')"
+
+          if [ "${existing}" -gt 0 ]; then
+            echo "Upstream ${tag} was already recorded."
+            exit 0
+          fi
+
+          gh issue create --repo "${TARGET}" --title "${title}" --body "$(cat <<EOF
+The upstream project [released ${tag}](https://github.com/${UPSTREAM}/releases/tag/${tag}).
+
+Create a new branch from this exact upstream tag; do not modify the previous custom build. Reapply Korean localization and Dolby Atmos as an additive layer, then run the Windows preservation/build checks before publishing an artifact.
+
+Required checks:
+- retain upstream DX12, DLSS/Frame Generation, shaders, DLLs, and settings;
+- retain Korean subtitle timing against the Japanese subtitle package;
+- retain the session-only \`--unlock-all\` test behavior;
+- report any upstream menu or text additions that need Korean translation.
+EOF
+)"
