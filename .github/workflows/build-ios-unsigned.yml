@@ -72,17 +72,9 @@ jobs:
           replace(apple_host_h, 'bool pt_apple_is_active(void);', 'bool pt_apple_is_active(void);\n// Enables iOS haptics after a recording-capable audio session is ready.\nbool pt_apple_allow_haptics_during_recording(void);')
           apple_host_m = root / 'src/engine/platform/apple_host.m'
           replace(apple_host_m, '#import <Foundation/Foundation.h>', '#import <Foundation/Foundation.h>\n#import <AVFAudio/AVAudioSession.h>')
-          # Append the bridge after the upstream implementation.  This avoids
-          # depending on an internal #else layout that changes between port revisions.
-          apple_host_m.write_text(apple_host_m.read_text() + '''\n\nbool pt_apple_allow_haptics_during_recording(void) {
-    NSError* error = nil;
-    const BOOL allowed = [[AVAudioSession sharedInstance] setAllowHapticsAndSystemSoundsDuringRecording:YES error:&error];
-    if (!allowed) {
-        NSLog(@"P.T.: could not allow haptics while recording: %@", error);
-    }
-    return allowed;
-}
-''')
+          # Append the bridge after the upstream implementation; do not depend on
+          # the port revision's internal preprocessor layout.
+          apple_host_m.write_text(apple_host_m.read_text() + '\\n\\nbool pt_apple_allow_haptics_during_recording(void) {\\n    NSError* error = nil;\\n    const BOOL allowed = [[AVAudioSession sharedInstance] setAllowHapticsAndSystemSoundsDuringRecording:YES error:&error];\\n    if (!allowed) {\\n        NSLog(@"P.T.: could not allow haptics while recording: %@", error);\\n    }\\n    return allowed;\\n}\\n')
           apple_cmake = root / 'cmake/Apple.cmake'
           replace(apple_cmake, '"-framework UIKit"', '"-framework UIKit;-framework AVFoundation"')
           localized = root / 'src/engine/core/localized_text.h'
