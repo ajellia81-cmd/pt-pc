@@ -51,7 +51,7 @@ jobs:
           (icon / 'Icon.png').write_bytes(base64.b64decode(
               'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9xPvkAAAAASUVORK5CYII='))
           # Korean is a code-side subtitle overlay, matching the port's existing added
-          # languages.  It uses the bundled Noto CJK font already shipped for Chinese.
+          # languages, with a dedicated Noto Sans KR font.
           korean = root / 'src/engine/core/korean_text.h'
           shutil.copyfile('src/engine/core/korean_text.h', korean)
           # Keep the iPhone copy aligned with the reviewed Windows-port Korean UI and
@@ -68,15 +68,6 @@ jobs:
               'https://raw.githubusercontent.com/google/fonts/e9678a5385322c63730122ba464765baad83cfd8/ofl/notosanskr/OFL.txt',
               root / 'assets/fonts/OFL-NotoSansKR.txt')
           assert korean_font.stat().st_size > 10_000_000, 'Noto Sans KR download is incomplete'
-          apple_host_h = root / 'src/engine/platform/apple_host.h'
-          replace(apple_host_h, 'bool pt_apple_is_active(void);', 'bool pt_apple_is_active(void);\n// Enables iOS haptics after a recording-capable audio session is ready.\nbool pt_apple_allow_haptics_during_recording(void);')
-          apple_host_m = root / 'src/engine/platform/apple_host.m'
-          replace(apple_host_m, '#import <Foundation/Foundation.h>', '#import <Foundation/Foundation.h>\n#import <AVFAudio/AVAudioSession.h>')
-          # Append the bridge after the upstream implementation; do not depend on
-          # the port revision's internal preprocessor layout.
-          apple_host_m.write_text(apple_host_m.read_text() + '\\n\\nbool pt_apple_allow_haptics_during_recording(void) {\\n    NSError* error = nil;\\n    const BOOL allowed = [[AVAudioSession sharedInstance] setAllowHapticsAndSystemSoundsDuringRecording:YES error:&error];\\n    if (!allowed) {\\n        NSLog(@"P.T.: could not allow haptics while recording: %@", error);\\n    }\\n    return allowed;\\n}\\n')
-          apple_cmake = root / 'cmake/Apple.cmake'
-          replace(apple_cmake, '"-framework UIKit"', '"-framework UIKit;-framework AVFoundation"')
           localized = root / 'src/engine/core/localized_text.h'
           replace(localized, '#include "engine/core/chinese_text.h"', '#include "engine/core/chinese_text.h"\n#include "engine/core/korean_text.h"')
           replace(localized, 'case 10:return russian::Menu(key);case 11:return ukrainian::Menu(key);default:return {};', 'case 10:return russian::Menu(key);case 11:return ukrainian::Menu(key);case 12:return korean::Menu(key);default:return {};')
@@ -101,21 +92,6 @@ jobs:
           replace(subtitles, 'lang == "Ara" ? 9 : lang == "Rus" ? 10 : lang == "Ukr" ? 11 : 0;', 'lang == "Ara" ? 9 : lang == "Rus" ? 10 : lang == "Ukr" ? 11 : lang == "Kor" ? 12 : 0;')
           replace(subtitles, 'case 10:translate(russian::kSubtitles);break;case 11:translate(ukrainian::kSubtitles);break;}', 'case 10:translate(russian::kSubtitles);break;case 11:translate(ukrainian::kSubtitles);break;case 12:translate(korean::kSubtitles);break;}')
           main = root / 'src/main.cpp'
-          replace(main, '#include "engine/platform/update_check.h"', '#include "engine/platform/update_check.h"\n#if PT_IOS\n#include "engine/platform/apple_host.h"\n#endif')
-          text = main.read_text()
-          mic_pattern = r'(?m)^(?P<indent>\\s*)const auto (?P<state>\\w+) = [^;]*\\.OpenAsync\\([^;]*\\);'
-          def enable_ios_haptics(match):
-              indent = match.group('indent')
-              state = match.group('state')
-              return match.group(0) + f'''\\n#if PT_IOS\\n{indent}// The recording-capable AVAudioSession is ready once OpenAsync settles.\\n{indent}if ({state} != pt::Microphone::AsyncState::Pending &&\\n{indent}    {state} != pt::Microphone::AsyncState::Failed &&\\n{indent}    !pt_apple_allow_haptics_during_recording()) {{\\n{indent}    pt::LogWarn("voice: iOS could not enable haptics during recording");\\n{indent}}}\\n#endif'''
-          text, count = re.subn(mic_pattern, enable_ios_haptics, text, count=1)
-          # Some upstream revisions move microphone startup out of main.cpp.  The
-          # bridge remains compiled; skip this call-site patch rather than failing
-          # the IPA build when that happens.
-          if count:
-              main.write_text(text)
-          else:
-              print('Microphone OpenAsync call is not in main.cpp for this source revision; haptics bridge is compiled but not invoked here.')
           replace(main, 'void ApplyFullscreen(App& app) {\n    if (!app.window) {\n        return;\n    }\n    const int mode = app.settings.display.fullscreen;\n    if (mode == 2) {\n        if (const SDL_DisplayMode* desktop = SDL_GetDesktopDisplayMode(SDL_GetDisplayForWindow(app.window))) {\n            SDL_SetWindowFullscreenMode(app.window, desktop);\n        }\n    } else {\n        SDL_SetWindowFullscreenMode(app.window, nullptr);\n    }\n    SDL_SetWindowFullscreen(app.window, mode != 0);\n}', 'void ApplyFullscreen(App& app) {\n    if (!app.window) {\n        return;\n    }\n#if PT_IOS\n    const bool fullscreen = app.settings.display.fullscreen != 0;\n    SDL_SetWindowFullscreenMode(app.window, nullptr);\n    SDL_SetWindowFullscreen(app.window, fullscreen);\n    if (fullscreen) {\n        int width = 0, height = 0;\n        if (SDL_GetWindowSizeInPixels(app.window, &width, &height) && width > 0 && height > 0) {\n            app.options.width = static_cast<uint32_t>(width);\n            app.options.height = static_cast<uint32_t>(height);\n            app.renderer.SetRenderExtent({app.options.width, app.options.height});\n        }\n    } else {\n        app.renderer.SetRenderExtent({1920, 1080});\n    }\n    return;\n#else\n    const int mode = app.settings.display.fullscreen;\n    if (mode == 2) {\n        if (const SDL_DisplayMode* desktop = SDL_GetDesktopDisplayMode(SDL_GetDisplayForWindow(app.window))) {\n            SDL_SetWindowFullscreenMode(app.window, desktop);\n        }\n    } else {\n        SDL_SetWindowFullscreenMode(app.window, nullptr);\n    }\n    SDL_SetWindowFullscreen(app.window, mode != 0);\n#endif\n}')
           replace(main, '        app.settings.display.fullscreen = 1;\n', '')
           replace(main, '        app.settings.display.mute_in_background = true;\n        app.settings.graphics.enhanced_textures = false;\n        app.settings.vr.enabled = false;', '        app.settings.display.mute_in_background = true;\n        app.settings.vr.enabled = false;')
@@ -145,12 +121,9 @@ jobs:
           assert 'language == 12 ? "Noto Sans KR"' in ui_assets_cpp.read_text()
           assert 'case 12:return korean::Menu(key);' in localized.read_text()
           assert 'lang == "Kor" ? 12' in subtitles.read_text()
-          assert 'pt_apple_allow_haptics_during_recording' in apple_host_m.read_text()
-          assert 'AVFoundation' in apple_cmake.read_text()
-          assert count == 0 or 'iOS could not enable haptics during recording' in main.read_text()
           assert '"Kor"};' in subtitle_player_cpp.read_text()
           assert 'SDL_GAMEPAD_BUTTON_GUIDE' not in input_cpp.read_text()
-          print('Configured iPhone logical 956x440 points / native 2868x1320 pixels, supplied icon, saved settings, fullscreen-only native rendering, and automatic touch hide.')
+          print('Configured iPhone logical 956x440 points / native 2868x1320 pixels, neutral app icon, saved settings, fullscreen-only native rendering, and automatic touch hide.')
           
           
           
@@ -200,5 +173,5 @@ jobs:
         with:
           name: pt-iphone-unsigned
           path: package/PT-iPhone-unsigned.ipa
-          retention-days: 1
+          retention-days: 7
           if-no-files-found: error
