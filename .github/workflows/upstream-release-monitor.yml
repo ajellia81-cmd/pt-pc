@@ -7,18 +7,25 @@ on:
   workflow_dispatch: {}
 
 permissions:
-  contents: read
+  actions: write
+  contents: write
 
 jobs:
   detect:
     runs-on: ubuntu-latest
     steps:
       - name: Detect a new upstream release
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create a fresh Korean + Atmos build branch
         env:
           GH_TOKEN: ${{ github.token }}
           UPSTREAM: LoreanXavier/pt-pc
-          # Update this only after a new upstream base has been ported and built.
           CURRENT_PORT_BASELINE: v1.0.7
+          OVERLAY_BRANCH: feature/strict-v107-korean-atmos
+          TARGET: ${{ github.repository }}
         shell: bash
         run: |
           set -euo pipefail
@@ -27,5 +34,42 @@ jobs:
             echo "Upstream ${tag} matches the current Korean + Atmos baseline."
             exit 0
           fi
-          echo "::error::Upstream ${tag} is newer than the prepared baseline ${CURRENT_PORT_BASELINE}. Start a fresh Korean + Atmos port from ${tag}."
+
+          branch="automation/upstream-${tag}-korean-atmos"
+          if git ls-remote --exit-code --heads origin "${branch}" >/dev/null 2>&1; then
+            echo "${branch} already exists; its Windows build was already requested."
+            exit 0
+          fi
+
+          git fetch --tags origin
+          git fetch origin "${OVERLAY_BRANCH}"
+          git remote add upstream "https://github.com/${UPSTREAM}.git"
+          git fetch upstream "refs/tags/${tag}:refs/tags/${tag}"
+          git checkout -B "${branch}" "${tag}"
+
+          # Start from the new upstream tag, then apply only this project's
+          # additive Korean/Atmos overlay.  --3way refuses incompatible source
+          # changes instead of silently producing a partly ported build.
+          git diff --binary "${CURRENT_PORT_BASELINE}" "origin/${OVERLAY_BRANCH}" > /tmp/korean-atmos-overlay.patch
+          git apply --3way --index /tmp/korean-atmos-overlay.patch
+
+          # The portable package must use this exact new upstream runtime, not
+          # the previous release archive.  Let the generated branch trigger
+          # the Windows workflow, then dispatch it explicitly as pushes made
+          # with GITHUB_TOKEN do not start another workflow automatically.
+          sed -i "s/v1\\.0\\.7/${tag}/g" .github/workflows/windows-release.yml
+          sed -i 's#branches: \[main, feature/strict-v107-korean-atmos\]#branches: [main, feature/strict-v107-korean-atmos, "automation/upstream-*"]#' .github/workflows/windows-release.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Prepare ${tag} Korean and Atmos overlay"
+          git push --set-upstream origin "${branch}"
+
+          for attempt in 1 2 3 4; do
+            if gh workflow run windows-release.yml --repo "${TARGET}" --ref "${branch}"; then
+              echo "Requested Windows build for ${branch}."
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::The overlay branch was created, but the Windows build could not be dispatched."
           exit 1
