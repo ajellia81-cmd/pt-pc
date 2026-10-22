@@ -1,0 +1,187 @@
+name: Build P.T. iPhone IPA
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: brew install cmake ninja shaderc molten-vk vulkan-headers
+      - name: Fetch port source
+        run: git clone --recurse-submodules --depth 1 https://github.com/buberlo/pt-ipad.git source
+      - name: Repair malformed upstream icon patch
+        shell: python
+        run: |
+          from pathlib import Path
+          patch = Path('source/patches/0015-app-presentation.patch')
+          text = patch.read_text()
+          begin = text.index('diff --git a/assets/apple/Assets.xcassets/AppIcon.appiconset/Icon.png')
+          end = text.index('diff --git a/assets/apple/Assets.xcassets/Contents.json', begin)
+          patch.write_text(text[:begin] + text[end:])
+      - name: Reconstruct native source
+        run: python3 source/tools/prepare_source.py
+      - name: Configure iPhone 18 Pro Max presentation and controls
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          import shutil
+          root = Path('source/build/port-src')
+          def replace(path, old, new):
+              text = path.read_text()
+              assert old in text, f'Missing expected source in {path}: {old[:80]!r}'
+              path.write_text(text.replace(old, new, 1))
+          bundle = root / 'cmake/AppleBundle.cmake'
+          replace(bundle, 'XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "2"', 'XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1"')
+          replace(bundle, '--target-device ipad --app-icon', '--target-device iphone --app-icon')
+          plist = root / 'cmake/Info.plist.in'
+          replace(plist, '<key>UIDeviceFamily</key><array><integer>2</integer></array>', '<key>UIDeviceFamily</key><array><integer>1</integer></array>')
+          replace(plist, '<key>UIApplicationSupportsIndirectInputEvents</key><true/>', '<key>UIApplicationSupportsIndirectInputEvents</key><true/><key>UIRequiresFullScreen</key><true/><key>UISupportedInterfaceOrientations~iphone</key><array><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>')
+          icon = root / 'assets/apple/Assets.xcassets/AppIcon.appiconset'
+          icon.mkdir(parents=True, exist_ok=True)
+          # This public build repository intentionally contains no game artwork.
+          # A neutral placeholder icon keeps the unsigned build self-contained.
+          import base64
+          (icon / 'Icon.png').write_bytes(base64.b64decode(
+              'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9xPvkAAAAASUVORK5CYII='))
+          # Korean is a code-side subtitle overlay, matching the port's existing added
+          # languages.  It uses the bundled Noto CJK font already shipped for Chinese.
+          korean = root / 'src/engine/core/korean_text.h'
+          shutil.copyfile('src/engine/core/korean_text.h', korean)
+          # Keep the iPhone copy aligned with the reviewed Windows-port Korean UI and
+          # subtitle table.  The iOS build only resolves keys it actually displays.
+          # Noto Sans SC does not contain Hangul.  A dedicated Korean face prevents
+          # repeated missing-glyph fallback during every UI and subtitle draw.
+          # Keep the source revision pinned for reproducible IPA builds.
+          import urllib.request
+          korean_font = root / 'assets/fonts/NotoSansKR.ttf'
+          urllib.request.urlretrieve(
+              'https://raw.githubusercontent.com/google/fonts/e9678a5385322c63730122ba464765baad83cfd8/ofl/notosanskr/NotoSansKR%5Bwght%5D.ttf',
+              korean_font)
+          urllib.request.urlretrieve(
+              'https://raw.githubusercontent.com/google/fonts/e9678a5385322c63730122ba464765baad83cfd8/ofl/notosanskr/OFL.txt',
+              root / 'assets/fonts/OFL-NotoSansKR.txt')
+          assert korean_font.stat().st_size > 10_000_000, 'Noto Sans KR download is incomplete'
+          apple_host_h = root / 'src/engine/platform/apple_host.h'
+          replace(apple_host_h, 'bool pt_apple_is_active(void);', 'bool pt_apple_is_active(void);\n// Enables iOS haptics after a recording-capable audio session is ready.\nbool pt_apple_allow_haptics_during_recording(void);')
+          apple_host_m = root / 'src/engine/platform/apple_host.m'
+          replace(apple_host_m, '#import <Foundation/Foundation.h>', '#import <Foundation/Foundation.h>\n#import <AVFAudio/AVAudioSession.h>')
+          replace(apple_host_m, '    return active;\n}\n#else\nbool pt_apple_is_active(void) { return true; }', '    return active;\n}\n\nbool pt_apple_allow_haptics_during_recording(void) {\n    NSError* error = nil;\n    const BOOL allowed = [[AVAudioSession sharedInstance] setAllowHapticsAndSystemSoundsDuringRecording:YES error:&error];\n    if (!allowed) {\n        NSLog(@"P.T.: could not allow haptics while recording: %@", error);\n    }\n    return allowed;\n}\n#else\nbool pt_apple_is_active(void) { return true; }\nbool pt_apple_allow_haptics_during_recording(void) { return true; }')
+          apple_cmake = root / 'cmake/Apple.cmake'
+          replace(apple_cmake, '"-framework UIKit"', '"-framework UIKit;-framework AVFoundation"')
+          localized = root / 'src/engine/core/localized_text.h'
+          replace(localized, '#include "engine/core/chinese_text.h"', '#include "engine/core/chinese_text.h"\n#include "engine/core/korean_text.h"')
+          replace(localized, 'case 10:return russian::Menu(key);case 11:return ukrainian::Menu(key);default:return {};', 'case 10:return russian::Menu(key);case 11:return ukrainian::Menu(key);case 12:return korean::Menu(key);default:return {};')
+          replace(localized, 'case 11:add(ukrainian::kMenu,ukrainian::kSubtitles);break;}', 'case 11:add(ukrainian::kMenu,ukrainian::kSubtitles);break;case 12:add(korean::kMenu,korean::kSubtitles);break;}')
+          ui_assets_h = root / 'src/game/ui/ui_assets.h'
+          replace(ui_assets_h, 'static constexpr int kLanguageCount = 12;', 'static constexpr int kLanguageCount = 13;')
+          replace(ui_assets_h, '{"eng", "fra", "deu", "spa", "jpn", "ita", "por", "tur", "zhs", "ara", "rus", "ukr"}', '{"eng", "fra", "deu", "spa", "jpn", "ita", "por", "tur", "zhs", "ara", "rus", "ukr", "kor"}')
+          replace(ui_assets_h, 'std::array<std::unique_ptr<UiFont>, 21> fonts_;', 'std::array<std::unique_ptr<UiFont>, 24> fonts_;')
+          ui_assets_cpp = root / 'src/game/ui/ui_assets.cpp'
+          replace(ui_assets_cpp, 'const char* family = language == 8 ? "Noto Sans SC" : language == 9 ? (type == UiFontType::Movie ? "Noto Naskh Arabic" : "Noto Kufi Arabic") : "Noto Sans";', 'const char* family = language == 8 ? "Noto Sans SC" : language == 12 ? "Noto Sans KR" : language == 9 ? (type == UiFontType::Movie ? "Noto Naskh Arabic" : "Noto Kufi Arabic") : "Noto Sans";')
+          options_menu = root / 'src/game/ui/options_menu.cpp'
+          replace(options_menu, '"op_sub_chinese", "op_sub_arabic", "op_sub_russian", "op_sub_ukrainian"};', '"op_sub_chinese", "op_sub_arabic", "op_sub_russian", "op_sub_ukrainian", "op_sub_korean"};')
+          replace(options_menu, '"Chinese (Simplified)", "Arabic", "Russian", "Ukrainian"};', '"Chinese (Simplified)", "Arabic", "Russian", "Ukrainian", "Korean"};')
+          subtitle_player_h = root / 'src/game/ui/subtitle_player.h'
+          replace(subtitle_player_h, 'static constexpr int kLanguageCount = 12;', 'static constexpr int kLanguageCount = 13;')
+          subtitle_player_cpp = root / 'src/game/ui/subtitle_player.cpp'
+          replace(subtitle_player_cpp, '"Ara", "Rus", "Ukr"};', '"Ara", "Rus", "Ukr", "Kor"};')
+          save_data = root / 'src/game/save_data.cpp'
+          replace(save_data, '    } else if (primary == "uk") {\n        options.subtitle_language = 11;\n    }', '    } else if (primary == "uk") {\n        options.subtitle_language = 11;\n    } else if (primary == "ko") {\n        options.subtitle_language = 12;\n    }')
+          subtitles = root / 'src/engine/audio/subtitles.cpp'
+          replace(subtitles, 'lang == "Rus" || lang == "Ukr") ? "Eng" : lang;', 'lang == "Rus" || lang == "Ukr" || lang == "Kor") ? "Eng" : lang;')
+          replace(subtitles, 'lang == "Ara" ? 9 : lang == "Rus" ? 10 : lang == "Ukr" ? 11 : 0;', 'lang == "Ara" ? 9 : lang == "Rus" ? 10 : lang == "Ukr" ? 11 : lang == "Kor" ? 12 : 0;')
+          replace(subtitles, 'case 10:translate(russian::kSubtitles);break;case 11:translate(ukrainian::kSubtitles);break;}', 'case 10:translate(russian::kSubtitles);break;case 11:translate(ukrainian::kSubtitles);break;case 12:translate(korean::kSubtitles);break;}')
+          main = root / 'src/main.cpp'
+          replace(main, '#include "engine/platform/update_check.h"', '#include "engine/platform/update_check.h"\n#if PT_IOS\n#include "engine/platform/apple_host.h"\n#endif')
+          replace(main, '                const auto state = microphone.OpenAsync(pt::VoiceRecognizer::kSampleRate, app.settings.voice.device);', '                const auto state = microphone.OpenAsync(pt::VoiceRecognizer::kSampleRate, app.settings.voice.device);\n#if PT_IOS\n                // SDL has now established its recording-capable AVAudioSession.  Do this\n                // once when opening finishes instead of every pending OpenAsync poll.\n                if (state != pt::Microphone::AsyncState::Pending &&\n                    state != pt::Microphone::AsyncState::Failed &&\n                    !pt_apple_allow_haptics_during_recording()) {\n                    pt::LogWarn("voice: iOS could not enable haptics during recording");\n                }\n#endif')
+          replace(main, 'void ApplyFullscreen(App& app) {\n    if (!app.window) {\n        return;\n    }\n    const int mode = app.settings.display.fullscreen;\n    if (mode == 2) {\n        if (const SDL_DisplayMode* desktop = SDL_GetDesktopDisplayMode(SDL_GetDisplayForWindow(app.window))) {\n            SDL_SetWindowFullscreenMode(app.window, desktop);\n        }\n    } else {\n        SDL_SetWindowFullscreenMode(app.window, nullptr);\n    }\n    SDL_SetWindowFullscreen(app.window, mode != 0);\n}', 'void ApplyFullscreen(App& app) {\n    if (!app.window) {\n        return;\n    }\n#if PT_IOS\n    const bool fullscreen = app.settings.display.fullscreen != 0;\n    SDL_SetWindowFullscreenMode(app.window, nullptr);\n    SDL_SetWindowFullscreen(app.window, fullscreen);\n    if (fullscreen) {\n        int width = 0, height = 0;\n        if (SDL_GetWindowSizeInPixels(app.window, &width, &height) && width > 0 && height > 0) {\n            app.options.width = static_cast<uint32_t>(width);\n            app.options.height = static_cast<uint32_t>(height);\n            app.renderer.SetRenderExtent({app.options.width, app.options.height});\n        }\n    } else {\n        app.renderer.SetRenderExtent({1920, 1080});\n    }\n    return;\n#else\n    const int mode = app.settings.display.fullscreen;\n    if (mode == 2) {\n        if (const SDL_DisplayMode* desktop = SDL_GetDesktopDisplayMode(SDL_GetDisplayForWindow(app.window))) {\n            SDL_SetWindowFullscreenMode(app.window, desktop);\n        }\n    } else {\n        SDL_SetWindowFullscreenMode(app.window, nullptr);\n    }\n    SDL_SetWindowFullscreen(app.window, mode != 0);\n#endif\n}')
+          replace(main, '        app.settings.display.fullscreen = 1;\n', '')
+          replace(main, '        app.settings.display.mute_in_background = true;\n        app.settings.graphics.enhanced_textures = false;\n        app.settings.vr.enabled = false;', '        app.settings.display.mute_in_background = true;\n        app.settings.vr.enabled = false;')
+          replace(main, 'app.window = SDL_CreateWindow("P.T.", app.settings.display.width, app.settings.display.height,\n                                      SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);', '#if PT_IOS\n        constexpr SDL_WindowFlags window_flags = SDL_WINDOW_VULKAN | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_BORDERLESS;\n#else\n        constexpr SDL_WindowFlags window_flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;\n#endif\n        app.window = SDL_CreateWindow("P.T.", app.settings.display.width, app.settings.display.height, window_flags);')
+          replace(main, '        ApplyFullscreen(app);\n    }\n    MountMods(app);', '        ApplyFullscreen(app);\n#if PT_IOS\n        int pixel_width = 0, pixel_height = 0;\n        if (SDL_GetWindowSizeInPixels(app.window, &pixel_width, &pixel_height) && pixel_width > 0 && pixel_height > 0) {\n            app.options.width = static_cast<uint32_t>(pixel_width);\n            app.options.height = static_cast<uint32_t>(pixel_height);\n            pt::LogInfo("iPhone display: {}x{} points, {}x{} pixels", app.settings.display.width, app.settings.display.height, pixel_width, pixel_height);\n        }\n#endif\n    }\n    MountMods(app);')
+          replace(main, '#if PT_IOS\n        input.SetTouchMenu(ui_ready && ui.MenuOpen());', '#if PT_IOS\n        const bool ios_gamepad_connected = input.GamepadCount() != 0;\n        input.EnableTouch(!ios_gamepad_connected);\n        input.SetTouchMenu(!ios_gamepad_connected && ui_ready && ui.MenuOpen());')
+          text = main.read_text()
+          text, count = re.subn(r'#if PT_IOS\n(\s*)\{\n(\s*)const ImVec2 size = ImGui::GetIO\(\).DisplaySize;', r'#if PT_IOS\n\1if (input.GamepadCount() == 0) {\n\2const ImVec2 size = ImGui::GetIO().DisplaySize;', text, count=1)
+          assert count == 1, 'Could not guard the virtual control overlay'
+          main.write_text(text)
+          input_h = root / 'src/engine/platform/input.h'
+          replace(input_h, 'void EnableTouch(bool enabled) { touch_enabled_ = enabled; touch_.Reset(); }', 'void EnableTouch(bool enabled) { if (touch_enabled_ != enabled) { touch_enabled_ = enabled; touch_.Reset(); } }')
+          input_cpp = root / 'src/engine/platform/input.cpp'
+
+          replace(main, 'app.renderer.SetRenderExtent({1920, 1080});', 'if (app.settings.display.fullscreen != 0) {\n        app.renderer.SetRenderExtent({app.options.width, app.options.height});\n    } else {\n        app.renderer.SetRenderExtent({1920, 1080});\n    }')
+          replace(main, '        } else if (event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) {\n            app.renderer.Resize(static_cast<uint32_t>(event.window.data1), static_cast<uint32_t>(event.window.data2));\n        }', '        } else if (event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) {\n            const uint32_t pixel_width = static_cast<uint32_t>(std::max(event.window.data1, 0));\n            const uint32_t pixel_height = static_cast<uint32_t>(std::max(event.window.data2, 0));\n            app.renderer.Resize(pixel_width, pixel_height);\n#if PT_IOS\n            if (app.settings.display.fullscreen != 0 && pixel_width > 0 && pixel_height > 0) {\n                app.options.width = pixel_width;\n                app.options.height = pixel_height;\n                app.renderer.SetRenderExtent({pixel_width, pixel_height});\n                pt::LogInfo("iPhone fullscreen resize: {}x{} pixels", pixel_width, pixel_height);\n            }\n#endif\n        }')
+          replace(main, '        pt::game::Game& view = theater ? theater->theater->Sandbox() : game;', '#if PT_IOS\n        // The post-ending street has the largest simultaneous scene allocation.  Keep every\n        // other fullscreen scene at native 2868x1320, but render this optional walk at 2/3\n        // scale (1912x880) while preserving the exact device aspect ratio.  The swapchain\n        // remains fullscreen, so this does not add letterboxing or alter other display modes.\n        if (app.settings.display.fullscreen != 0) {\n            const VkExtent2D ios_render_extent = game.StreetWalkActive() && !theater\n                ? VkExtent2D{1912, 880}\n                : VkExtent2D{app.options.width, app.options.height};\n            app.renderer.SetRenderExtent(ios_render_extent);\n        }\n#endif\n        pt::game::Game& view = theater ? theater->theater->Sandbox() : game;')
+          assert 'app.settings.display.fullscreen = 1;' not in main.read_text()
+          assert '        app.settings.display.mute_in_background = true;\n        app.settings.vr.enabled = false;' in main.read_text()
+          assert 'const bool fullscreen = app.settings.display.fullscreen != 0;' in main.read_text()
+          assert 'app.renderer.SetRenderExtent({app.options.width, app.options.height});' in main.read_text()
+          assert 'iPhone fullscreen resize: {}x{} pixels' in main.read_text()
+          assert 'game.StreetWalkActive() && !theater' in main.read_text()
+          assert 'VkExtent2D{1912, 880}' in main.read_text()
+          assert 'namespace pt::korean' in korean.read_text()
+          assert korean_font.is_file()
+          assert 'language == 12 ? "Noto Sans KR"' in ui_assets_cpp.read_text()
+          assert 'case 12:return korean::Menu(key);' in localized.read_text()
+          assert 'lang == "Kor" ? 12' in subtitles.read_text()
+          assert 'pt_apple_allow_haptics_during_recording' in apple_host_m.read_text()
+          assert 'AVFoundation' in apple_cmake.read_text()
+          assert 'iOS could not enable haptics during recording' in main.read_text()
+          assert '"Kor"};' in subtitle_player_cpp.read_text()
+          assert 'SDL_GAMEPAD_BUTTON_GUIDE' not in input_cpp.read_text()
+          print('Configured iPhone logical 956x440 points / native 2868x1320 pixels, supplied icon, saved settings, fullscreen-only native rendering, and automatic touch hide.')
+          
+          
+          
+          
+          
+          
+          
+          
+          
+      - name: Normalize supplied app icon
+        run: sips -s format png -z 1024 1024 source/build/port-src/assets/apple/Assets.xcassets/AppIcon.appiconset/Icon.png --out source/build/port-src/assets/apple/Assets.xcassets/AppIcon.appiconset/Icon.png
+      - name: Build iOS MoltenVK
+        run: |
+          git clone https://github.com/KhronosGroup/MoltenVK.git moltenvk
+          git -C moltenvk checkout fae55a18779ee59da2cc5373a367a0282779c171
+          cd moltenvk
+          ./fetchDependencies --ios
+          make ios
+          cd ..
+          mkdir -p moltenvk-driver
+          cp -R moltenvk/Package/Release/MoltenVK moltenvk-driver/MoltenVK
+          git clone https://github.com/KhronosGroup/MoltenVK.git moltenvk-clean
+          git -C moltenvk-clean checkout fae55a18779ee59da2cc5373a367a0282779c171
+          mkdir -p moltenvk-clean/Package/Release
+          cp -R moltenvk-driver/MoltenVK moltenvk-clean/Package/Release/MoltenVK
+      - name: Build unsigned ARM64 iPhone application
+        run: |
+          cd source
+          python3 tools/build_native.py ios --source build/port-src --moltenvk-root "$GITHUB_WORKSPACE/moltenvk-clean" --build-number 1
+      - name: Package and validate unsigned IPA
+        run: |
+          mkdir -p package/Payload
+          ditto --norsrc --noextattr --noqtn source/build/ios-arm64/pt.app package/Payload/PT.app
+          (cd package && ditto -c -k --keepParent --norsrc --noextattr --noqtn Payload PT-iPhone-unsigned.ipa)
+          python3 - <<'PY'
+          import zipfile
+          ipa = 'package/PT-iPhone-unsigned.ipa'
+          with zipfile.ZipFile(ipa) as archive:
+              names = archive.namelist()
+          assert 'Payload/PT.app/Info.plist' in names, 'IPA is missing Payload/PT.app/Info.plist'
+          assert 'Payload/PT.app/fonts/NotoSansKR.ttf' in names, 'IPA is missing the Korean font'
+          assert not any(name.startswith('PT.app/') for name in names), 'PT.app must be nested in Payload'
+          print('Validated IPA payload structure:', len(names), 'entries')
+          PY
+          shasum -a 256 package/PT-iPhone-unsigned.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pt-iphone-unsigned
+          path: package/PT-iPhone-unsigned.ipa
+          retention-days: 1
+          if-no-files-found: error
