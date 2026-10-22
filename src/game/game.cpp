@@ -1831,6 +1831,9 @@ void Game::UpdateGamePlusDemos() {
 
 int Game::GamePlusTier() const {
 #if PT_GAMEPLUS
+    // --unlock-all is a session-only test switch.  It must show every Game+
+    // feature, but must not change the player's completed-game count or save.
+    if (config_.unlock_all) return 4;
     static const int forced = [] {
         const char* v = std::getenv("PT_GAMEPLUS_TIER");
         return v && *v ? std::atoi(v) : -1;

@@ -231,6 +231,7 @@ struct Options {
     std::vector<std::string> relaunch_args;
     int street_offer = 0;
     bool release_locks = kReleaseLocks;
+    bool unlock_all = false;
     bool third_person = false;
     std::filesystem::path make_loop_previews;
     std::filesystem::path dlss5_install;
@@ -406,8 +407,11 @@ Options ParseOptions(int argc, char** argv) {
             options.street_offer = answer == "walk" ? 1 : answer == "restart" ? 2 : answer == "never" ? -1 : 0;
         } else if (arg == "--release-locks") {
             options.release_locks = true;
-        } else if (arg == "--no-release-locks" || arg == "--unlock-all") {
+        } else if (arg == "--no-release-locks") {
             options.release_locks = false;
+        } else if (arg == "--unlock-all") {
+            options.release_locks = false;
+            options.unlock_all = true;
         } else if (arg == "--third-person") {
             options.third_person = true;
         } else if (arg == "--dlss5-install" && has_value) {
@@ -4811,6 +4815,7 @@ int RunGame(App& app, pt::Vfs& vfs) {
     config.bug_screen = options.bug_screen;
     config.street_offer = options.street_offer;
     config.release_locks = options.release_locks;
+    config.unlock_all = options.unlock_all;
     const char* trap_log_env = std::getenv("PT_TRAP_LOG");
     config.trap_log = options.trap_log || (trap_log_env && *trap_log_env == '1');
     config.first_boot_options = options.first_boot_options;
