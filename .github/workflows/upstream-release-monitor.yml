@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
   detect:
@@ -18,16 +17,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           UPSTREAM: LoreanXavier/pt-pc
-          TARGET: ${{ github.repository }}
+          # Update this only after a new upstream base has been ported and built.
+          CURRENT_PORT_BASELINE: v1.0.7
         shell: bash
         run: |
           set -euo pipefail
           tag="$(gh api "repos/${UPSTREAM}/releases/latest" --jq '.tag_name')"
-          title="Upstream ${tag} detected — prepare Korean + Atmos rebuild"
-          existing="$(gh issue list --repo "${TARGET}" --state all --search "\"${title}\" in:title" --json number --jq 'length')"
-          if [ "${existing}" -gt 0 ]; then
-            echo "Upstream ${tag} was already recorded."
+          if [ "${tag}" = "${CURRENT_PORT_BASELINE}" ]; then
+            echo "Upstream ${tag} matches the current Korean + Atmos baseline."
             exit 0
           fi
-          body="The upstream project released ${tag}. Create a new branch from this exact upstream tag; do not modify the previous custom build. Reapply Korean localization and Dolby Atmos as an additive layer, then run the Windows preservation/build checks before publishing an artifact."
-          gh issue create --repo "${TARGET}" --title "${title}" --body "${body}"
+          echo "::error::Upstream ${tag} is newer than the prepared baseline ${CURRENT_PORT_BASELINE}. Start a fresh Korean + Atmos port from ${tag}."
+          exit 1
