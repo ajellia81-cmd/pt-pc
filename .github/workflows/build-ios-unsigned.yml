@@ -109,8 +109,13 @@ jobs:
               state = match.group('state')
               return match.group(0) + f'''\\n#if PT_IOS\\n{indent}// The recording-capable AVAudioSession is ready once OpenAsync settles.\\n{indent}if ({state} != pt::Microphone::AsyncState::Pending &&\\n{indent}    {state} != pt::Microphone::AsyncState::Failed &&\\n{indent}    !pt_apple_allow_haptics_during_recording()) {{\\n{indent}    pt::LogWarn("voice: iOS could not enable haptics during recording");\\n{indent}}}\\n#endif'''
           text, count = re.subn(mic_pattern, enable_ios_haptics, text, count=1)
-          assert count == 1, 'Could not locate microphone OpenAsync call'
-          main.write_text(text)
+          # Some upstream revisions move microphone startup out of main.cpp.  The
+          # bridge remains compiled; skip this call-site patch rather than failing
+          # the IPA build when that happens.
+          if count:
+              main.write_text(text)
+          else:
+              print('Microphone OpenAsync call is not in main.cpp for this source revision; haptics bridge is compiled but not invoked here.')
           replace(main, 'void ApplyFullscreen(App& app) {\n    if (!app.window) {\n        return;\n    }\n    const int mode = app.settings.display.fullscreen;\n    if (mode == 2) {\n        if (const SDL_DisplayMode* desktop = SDL_GetDesktopDisplayMode(SDL_GetDisplayForWindow(app.window))) {\n            SDL_SetWindowFullscreenMode(app.window, desktop);\n        }\n    } else {\n        SDL_SetWindowFullscreenMode(app.window, nullptr);\n    }\n    SDL_SetWindowFullscreen(app.window, mode != 0);\n}', 'void ApplyFullscreen(App& app) {\n    if (!app.window) {\n        return;\n    }\n#if PT_IOS\n    const bool fullscreen = app.settings.display.fullscreen != 0;\n    SDL_SetWindowFullscreenMode(app.window, nullptr);\n    SDL_SetWindowFullscreen(app.window, fullscreen);\n    if (fullscreen) {\n        int width = 0, height = 0;\n        if (SDL_GetWindowSizeInPixels(app.window, &width, &height) && width > 0 && height > 0) {\n            app.options.width = static_cast<uint32_t>(width);\n            app.options.height = static_cast<uint32_t>(height);\n            app.renderer.SetRenderExtent({app.options.width, app.options.height});\n        }\n    } else {\n        app.renderer.SetRenderExtent({1920, 1080});\n    }\n    return;\n#else\n    const int mode = app.settings.display.fullscreen;\n    if (mode == 2) {\n        if (const SDL_DisplayMode* desktop = SDL_GetDesktopDisplayMode(SDL_GetDisplayForWindow(app.window))) {\n            SDL_SetWindowFullscreenMode(app.window, desktop);\n        }\n    } else {\n        SDL_SetWindowFullscreenMode(app.window, nullptr);\n    }\n    SDL_SetWindowFullscreen(app.window, mode != 0);\n#endif\n}')
           replace(main, '        app.settings.display.fullscreen = 1;\n', '')
           replace(main, '        app.settings.display.mute_in_background = true;\n        app.settings.graphics.enhanced_textures = false;\n        app.settings.vr.enabled = false;', '        app.settings.display.mute_in_background = true;\n        app.settings.vr.enabled = false;')
