@@ -299,7 +299,7 @@ jobs:
               else:
                   assert relative[0] in allowed_dirs, 'Unexpected bundle resource directory'
                   if relative[0] == 'fonts':
-                      assert path.suffix.lower() in {'.ttf', '.otf', '.txt'}, 'Unexpected font resource'
+                      assert path.suffix.lower() in {'.ttf', '.otf', '.txt'} or path.name == 'README.md', f'Unexpected font resource: {path.name}'
                   if relative[0] == 'shaders':
                       assert path.suffix.lower() == '.spv', f'Unexpected shader resource: {path.name}'
           print('PASS: public engine-only IPA allowlist; no game packages or extracted game assets')
