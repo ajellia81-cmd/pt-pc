@@ -146,10 +146,15 @@ jobs:
           replace(options_menu, "        set(id, kLanguageKeys[language_index]);", "        view_.State(id).font_language.reset();\n        view_.State(id).font_scale.reset();\n        set(id, kLanguageKeys[language_index]);\n        if (language_index == UiAssets::kLanguageCount && text_language_ == 4) {\n            view_.State(id).font_language = korean::LabelFontLanguage(text_language_);\n            view_.State(id).font_scale = korean::LabelFontScale(text_language_);\n        }")
           replace(localized, " return out;", " if (language == 8) out += \"韩国语韓国語\";\n return out;")
           game_ui = root / 'src/game/ui/game_ui.cpp'
-          # Restore original options as the entry page, including the settings shortcut.
-          # Requests made while the menu is already open still enter PC settings normally.
-          replace(game_ui, 'OpenMenu(game, false, pc_request ? OptionsMenu::Page::Pc : OptionsMenu::Page::Original);', 'OpenMenu(game, false, OptionsMenu::Page::Original);')
-          assert 'OpenMenu(game, false, pc_request ? OptionsMenu::Page::Pc : OptionsMenu::Page::Original);' not in game_ui.read_text()
+          # Preserve Windows controller behavior: Start opens/resumes original options;
+          # Select/Back requests PC settings, including when the menu is closed.
+          assert 'OpenMenu(game, false, pc_request ? OptionsMenu::Page::Pc : OptionsMenu::Page::Original);' in game_ui.read_text()
+          input_source = (root / 'src/engine/platform/input.cpp').read_text()
+          assert 'state.pause = pause_edge_ || ((pad_pressed & kRawStart) && !(pad_pressed & kRawSelect));' in input_source
+          assert 'state.pc_settings = settings_edge_;' in input_source
+          assert 'event.gbutton.button == SDL_GAMEPAD_BUTTON_BACK) {\n                settings_edge_ = true;' in input_source
+          assert 'SwitchPage(game, Page::Original);' in options_menu.read_text()
+          print('PASS: Windows Start/Select input mapping and original/PC menu routing preserved')
           replace(game_ui, "#include \"game/ui/game_ui.h\"", "#include \"game/ui/game_ui.h\"\n#include \"game/ui/korean_presentation.h\"")
           replace(game_ui, "UiFont* font = assets_.Font(UiFontType::Movie, language);", "UiFont* font = assets_.FontCovering(UiFontType::Movie, language, view.text);")
           replace(game_ui, "    ui::NormalizeSubtitleStyle(text_style);", "    ui::NormalizeSubtitleStyle(text_style);\n    korean::MatchSubtitleStyle(text_style, language);")
@@ -274,6 +279,28 @@ jobs:
           ipa = 'package/PT-iPhone-unsigned.ipa'
           with zipfile.ZipFile(ipa) as archive:
               names = archive.namelist()
+          # Public artifact contains the engine only. Never upload extracted game data.
+          from pathlib import PurePosixPath
+          allowed_root = {'pt', 'PT', 'Info.plist', 'PkgInfo', 'Assets.car', 'apple-build-inputs.txt', 'build-provenance.json', 'embedded.mobileprovision'}
+          allowed_dirs = {'fonts', 'shaders', 'voice', 'licenses', 'Frameworks', '_CodeSignature'}
+          forbidden_suffixes = {'.pkg', '.psarc', '.fpk', '.fpkd', '.dat', '.pck', '.pak', '.wem', '.bnk', '.uif', '.uia', '.uilb', '.dds'}
+          for name in names:
+              path = PurePosixPath(name)
+              if name.endswith('/'):
+                  continue
+              assert path.parts[:2] == ('Payload', 'PT.app'), 'Unexpected IPA root'
+              relative = path.parts[2:]
+              assert relative, 'Invalid bundle entry'
+              assert path.suffix.lower() not in forbidden_suffixes, 'Game data must never be published'
+              if len(relative) == 1:
+                  assert relative[0] in allowed_root or (relative[0].startswith('AppIcon') and path.suffix == '.png'), 'Unexpected bundle root file'
+              else:
+                  assert relative[0] in allowed_dirs, 'Unexpected bundle resource directory'
+                  if relative[0] == 'fonts':
+                      assert path.suffix.lower() in {'.ttf', '.otf', '.txt'}, 'Unexpected font resource'
+                  if relative[0] == 'shaders':
+                      assert path.suffix.lower() == '.spv', 'Unexpected shader resource'
+          print('PASS: public engine-only IPA allowlist; no game packages or extracted game assets')
           assert 'Payload/PT.app/Info.plist' in names, 'IPA is missing Payload/PT.app/Info.plist'
           assert 'Payload/PT.app/fonts/NotoSansKR.ttf' in names, 'IPA is missing the Korean font'
           assert not any(name.startswith('PT.app/') for name in names), 'PT.app must be nested in Payload'
