@@ -7,12 +7,13 @@
 #include <format>
 
 #include "engine/core/log.h"
+#include "engine/core/korean_text.h"
 #include "engine/fs/vfs.h"
 
 namespace pt::game {
 namespace {
 
-constexpr const char* kSubtitleLanguages[SubtitlePlayer::kLanguageCount] = {"Eng", "Fre", "Ger", "Spa", "Jpn", "Ita", "Por", "Tur", "Zhs", "Ara", "Rus", "Ukr", "Ces", "Pol"};
+constexpr const char* kSubtitleLanguages[SubtitlePlayer::kLanguageCount] = {"Eng", "Fre", "Ger", "Spa", "Jpn", "Ita", "Por", "Tur", "Zhs", "Ara", "Rus", "Ukr", "Ces", "Pol", "Kor"};
 
 constexpr int kPlayingPriority[8] = {255, 0, 0, 10, 20, 30, 40, 0};
 constexpr float kRangeRadius[4] = {0.0f, 20.0f, 40.0f, 70.0f};
@@ -56,6 +57,23 @@ std::string Cp1252ToUtf8(std::string_view text) {
     return out;
 }
 
+// SubtitleTable normally replaces English lines while it loads the selected
+// language.  Keep a display-time Korean lookup too: it is deliberately
+// independent of package parsing so an older or modded English subtitle
+// package cannot silently turn a Korean selection back into English.
+std::string KoreanLine(uint32_t key, size_t line, size_t expected_lines, std::string_view fallback) {
+    for (const korean::Subtitle& subtitle : korean::kSubtitles) {
+        // A translation can use a different number of on-screen cues than a
+        // source package.  Never shift every later cue by applying such a
+        // table by index; SubtitleTable keeps the source line in that case.
+        if (subtitle.key != key || subtitle.lines.size() != expected_lines || line >= subtitle.lines.size()) continue;
+        std::string text(subtitle.lines.begin()[line]);
+        std::replace(text.begin(), text.end(), '|', '\n');
+        return text;
+    }
+    return std::string(fallback);
+}
+
 }
 
 int SubtitlePlayer::PlayingPriority(int category) {
@@ -68,6 +86,7 @@ float SubtitlePlayer::RangeRadius(int range) {
 
 void SubtitlePlayer::SetLanguage(int language) {
     language_ = std::clamp(language, 0, kLanguageCount - 1);
+    LogInfo("ui: subtitles selected {} (index {})", kSubtitleLanguages[language_], language_);
     Table(language_);
 }
 
@@ -196,6 +215,9 @@ std::vector<SubtitlePlayer::TranscriptLine> SubtitlePlayer::Transcript(std::stri
         std::string text = ValidUtf8(line.text) ? line.text : Cp1252ToUtf8(line.text);
         while (!text.empty() && (text.back() == '\0' || text.back() == '\n' || text.back() == ' ')) text.pop_back();
         std::replace(text.begin(), text.end(), '\n', ' ');
+        // Museum transcripts flatten subtitle line breaks.  Translation entries commonly keep a space on both
+        // sides of a visual line break ("에서 | 시간제"), which otherwise becomes a visible double space here.
+        text.erase(std::unique(text.begin(), text.end(), [](char a, char b) { return a == ' ' && b == ' '; }), text.end());
         out.push_back({line.start_seconds, line.end_seconds, std::move(text)});
     }
     return out;
@@ -229,11 +251,13 @@ bool SubtitlePlayer::Current(std::string_view hidden_id, SubtitleView& out) cons
     if (!entry) {
         return false;
     }
-    for (const audio::SubtitleLine& line : entry->lines) {
+    for (size_t index = 0; index < entry->lines.size(); ++index) {
+        const audio::SubtitleLine& line = entry->lines[index];
         if (best->time >= line.start_seconds && best->time < line.end_seconds) {
             out.key = best->key;
             out.id = best->id;
-            out.text = ValidUtf8(line.text) ? line.text : Cp1252ToUtf8(line.text);
+            const std::string text = ValidUtf8(line.text) ? line.text : Cp1252ToUtf8(line.text);
+            out.text = language_ == 14 ? KoreanLine(best->key, index, entry->lines.size(), text) : text;
             out.category = entry->category;
             return !out.text.empty();
         }

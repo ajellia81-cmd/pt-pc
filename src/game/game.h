@@ -131,6 +131,8 @@ struct GameConfig {
     int bug_screen = -1;
     int street_offer = 0;
     bool release_locks = false;
+    // Test-only: expose every Game+ tier without writing it into the save.
+    bool unlock_all = false;
     bool theater = false;
 };
 
@@ -351,7 +353,7 @@ public:
     float EndingSkipProgress() const { return ending_skip_hold_ / kEndingSkipHold; }
     void OnFloorReached(std::string_view floor, int pass);
     void EnableGamePlus();
-    bool GamePlus() const { return game_plus_; }
+    bool GamePlus() const { return game_plus_ || config_.unlock_all; }
     uint32_t Finishes() const { return finishes_; }
     int GamePlusNoticeDue();
     int CurrentLoopIndex() const { return current_loop_index_; }

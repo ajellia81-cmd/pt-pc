@@ -62,7 +62,15 @@ uint64_t SubtitleTable::MarkerKey(std::string_view label) {
 
 bool SubtitleTable::Load(Vfs& vfs, std::string_view language, std::span<const std::vector<uint8_t>> sab_tables, std::string* error) {
     const std::string lang = NormalizeLanguage(language);
-    std::string source = (lang == "Tur" || lang == "Zhs" || lang == "Ara" || lang == "Rus" || lang == "Ukr" || lang == "Ces" || lang == "Pol") ? "Eng" : lang;
+    // These languages use the English timing/package data and replace only the
+    // displayed lines with the port's translated table.  Korean is translated
+    // from Japanese, so retain the original Japanese line timing rather than
+    // borrowing the English voice table (the two radio broadcasts do not
+    // always split a sentence at the same instant).
+    std::string source = (lang == "Tur" || lang == "Zhs" || lang == "Ara" || lang == "Rus" || lang == "Ukr" || lang == "Ces" || lang == "Pol" || lang == "Kor")
+                             ? "Eng"
+                             : lang;
+    if (lang == "Kor") source = "Jpn";
     if (source != "Eng" && !vfs.Archive().Contains(Vfs::ToArchivePath(PackagePath(source)))) {
         LogWarn("subtitles: {} missing, falling back to English", PackagePath(source));
         source = "Eng";
@@ -83,8 +91,14 @@ bool SubtitleTable::Load(Vfs& vfs, std::string_view language, std::span<const st
     if (!Parse(*subp, sab_tables, error)) {
         return false;
     }
-    const int translation_language = lang == "Tur" ? 7 : lang == "Zhs" ? 8 : lang == "Ara" ? 9 : lang == "Rus" ? 10 : lang == "Ukr" ? 11 : lang == "Ces" ? 12 : lang == "Pol" ? 13 : 0;
+    const int translation_language = lang == "Tur" ? 7 : lang == "Zhs" ? 8 : lang == "Ara" ? 9 : lang == "Rus" ? 10 : lang == "Ukr" ? 11 : lang == "Ces" ? 12 : lang == "Pol" ? 13 : lang == "Kor" ? 14 : 0;
     if (translation_language) {
+        // A translated table must never make every subtitle disappear just
+        // because a newer port adds one English entry.  Keep the authored
+        // English line for an unknown key and report it, so established
+        // translations remain visible while the new line can be translated.
+        size_t translated = 0;
+        size_t missing = 0;
         for (SubtitleEntry& entry : entries_) {
             bool found = false;
             auto translate = [&](const auto& table) {
@@ -92,9 +106,16 @@ bool SubtitleTable::Load(Vfs& vfs, std::string_view language, std::span<const st
                     size_t i=0; for (auto text : t.lines) { auto& line=entry.lines[i++].text; line=text; std::replace(line.begin(),line.end(),'|','\n'); } found = true; break;
                 }
             };
-            switch(translation_language) {case 7:translate(turkish::kSubtitles);break;case 8:translate(chinese::kSubtitles);break;case 9:translate(arabic::kSubtitles);break;case 10:translate(russian::kSubtitles);break;case 11:translate(ukrainian::kSubtitles);break;case 12:translate(czech::kSubtitles);break;case 13:translate(polish::kSubtitles);break;}
-            if (!found) { if (error) *error = std::format("{} subtitle {:08x} missing or line count differs", lang, entry.key); return false; }
+            switch(translation_language) {case 7:translate(turkish::kSubtitles);break;case 8:translate(chinese::kSubtitles);break;case 9:translate(arabic::kSubtitles);break;case 10:translate(russian::kSubtitles);break;case 11:translate(ukrainian::kSubtitles);break;case 12:translate(czech::kSubtitles);break;case 13:translate(polish::kSubtitles);break;case 14:translate(korean::kSubtitles);break;}
+            if (found) {
+                ++translated;
+            } else {
+                ++missing;
+                LogWarn("subtitles: {} subtitle {:08x} is untranslated or has a different line count; retaining English", lang,
+                        entry.key);
+            }
         }
+        LogInfo("subtitles: {} applied {} embedded translations; {} entries retained in English", lang, translated, missing);
     }
     language_ = lang;
     return true;

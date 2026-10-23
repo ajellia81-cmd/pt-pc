@@ -125,6 +125,8 @@ constexpr Entry kTexts[] = {
     {"pc_update_available_auto", {"Version {1} is available (this is {2}). PC Settings > Update the game installs it."}},
     {"pc_surround_spatial", {"Windows spatial sound"}},
     {"pc_note_surround_spatial", {"The 7.1 mix through Windows Sonic, Dolby Atmos or DTS:X, after restarting: turn one on in Windows' sound settings (Spatial audio). Without it, the game uses 5.1/7.1 or stereo."}},
+    {"pc_dolby_atmos", {"Dolby Atmos for Home Theater"}},
+    {"pc_note_dolby_atmos", {"Uses Windows Spatial Sound dynamic objects after restarting. Turn on Dolby Atmos for Home Theater in Windows. If it is unavailable, the game uses the normal stereo/5.1/7.1 output."}},
     {"pc_prompt_style", {"Button prompts"}},
     {"pc_prompt_auto", {"Automatic"}},
     {"pc_note_prompt_style", {"Which controller's buttons the prompts show. Automatic follows the controller you use; the keyboard always shows its keys."}},

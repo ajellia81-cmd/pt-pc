@@ -20,7 +20,7 @@ AudioOutput::~AudioOutput() {
     Close();
 }
 
-bool AudioOutput::Open(uint32_t sample_rate, bool surround, RenderFunction render) {
+bool AudioOutput::Open(uint32_t sample_rate, bool surround, RenderFunction render, SpatialRenderFunction spatial_render) {
     Close();
     if (devices::AudioStarting()) {
         LogWarn("audio: the audio devices are still starting (surround requested: {})", surround);
@@ -45,13 +45,14 @@ bool AudioOutput::Open(uint32_t sample_rate, bool surround, RenderFunction rende
     const SDL_AudioDeviceID target = selection.endpoint ? sdl_ids[*selection.endpoint] : SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK;
     chosen_physical_ = selection.endpoint ? sdl_ids[*selection.endpoint] : 0;
     default_at_open_ = SystemDefaultPlaybackName();
-    if (prefer_spatial_) {
+    if (prefer_spatial_ || prefer_object_spatial_) {
         if (chosen && chosen->id.empty()) {
             LogInfo("audio: spatial sound: '{}' has no single Windows endpoint of that name, so it plays through the ordinary output",
                     chosen->name);
         } else {
             auto spatial = std::make_unique<SpatialOutput>();
-            if (spatial->Open(sample_rate, render_, chosen ? chosen->id : std::string())) {
+            if (spatial->Open(sample_rate, render_, prefer_object_spatial_ ? std::move(spatial_render) : SpatialRenderFunction{},
+                              chosen ? chosen->id : std::string())) {
                 spatial_ = std::move(spatial);
                 channels_ = 8;
                 device_name_ = spatial_->DeviceName();

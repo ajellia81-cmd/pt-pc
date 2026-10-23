@@ -316,6 +316,7 @@ struct Options {
     std::vector<std::string> relaunch_args;
     int street_offer = 0;
     bool release_locks = kReleaseLocks;
+    bool unlock_all = false;
     bool third_person = false;
     std::filesystem::path make_loop_previews;
     std::filesystem::path dlss5_install;
@@ -367,6 +368,7 @@ constexpr OptionSpec kOptionSpecs[] = {
     {"--release-locks", 0, "the release build's loop browser locks"},
     {"--third-person", 0, "the experimental third person view on (Extras; pt.ini is not changed)"},
     {"--no-release-locks", 0, "no loop browser locks"},
+    {"--unlock-all", 0, "testing: temporarily unlock every loop and Museum entry (does not change saves)"},
     {"--make-loop-previews", 1, "<folder> shoot the loop browser previews and exit (headless)"},
     {"--dlss5-install", 1, "<folder> install DLSS 5 into that data folder and exit (tests)"},
     {"--dlss5-arch", 1, "<0|75|86|89> the GPU code --dlss5-install takes (0: RTX 50, none)"},
@@ -492,6 +494,9 @@ Options ParseOptions(int argc, char** argv) {
             options.release_locks = true;
         } else if (arg == "--no-release-locks") {
             options.release_locks = false;
+        } else if (arg == "--unlock-all") {
+            options.release_locks = false;
+            options.unlock_all = true;
         } else if (arg == "--third-person") {
             options.third_person = true;
         } else if (arg == "--dlss5-install" && has_value) {
@@ -3225,6 +3230,7 @@ public:
             }
             sound.rows.push_back(std::move(speaker));
         }
+        sound.rows.push_back(Row(kDolbyAtmos, "pc_dolby_atmos", OffOn(), s.audio.dolby_atmos ? 1 : 0, "pc_note_dolby_atmos"));
         pt::game::PcSettingRow controller_speaker_volume = Row(
             kControllerSpeakerVolume, "pc_controller_speaker_volume", {},
             std::clamp(static_cast<int>(std::lround(s.audio.controller_speaker_volume * 20.0f)), 0, 20),
@@ -3570,6 +3576,10 @@ public:
             if ((s.audio.spatial ? 2 : s.audio.surround ? 1 : 0) != value) game_.ShowNoticeDialog("pc_restart_needed");
             s.audio.surround = value >= 1;
             s.audio.spatial = value == 2;
+            break;
+        case kDolbyAtmos:
+            if (s.audio.dolby_atmos != (value == 1)) game_.ShowNoticeDialog("pc_restart_needed");
+            s.audio.dolby_atmos = value == 1;
             break;
         case kControllerSpeaker:
             s.audio.controller_speaker = value == 1;
@@ -4266,7 +4276,7 @@ private:
         kDisplayMode,
         kResolution,
         kRefreshRate,
-        kVsync, kFpsLimit, kHdr, kHdrPaperWhite, kHdrPeak, kSurround, kControllerSpeaker, kControllerSpeakerVolume, kRumbleProfile, kPromptStyle,
+        kVsync, kFpsLimit, kHdr, kHdrPaperWhite, kHdrPeak, kSurround, kDolbyAtmos, kControllerSpeaker, kControllerSpeakerVolume, kRumbleProfile, kPromptStyle,
         kUpscaler,
         kQuality,
         kSharpness,
@@ -5296,6 +5306,7 @@ int RunGame(App& app, pt::Vfs& vfs) {
     config.bug_screen = options.bug_screen;
     config.street_offer = options.street_offer;
     config.release_locks = options.release_locks;
+    config.unlock_all = options.unlock_all;
     const char* trap_log_env = std::getenv("PT_TRAP_LOG");
     config.trap_log = options.trap_log || (trap_log_env && *trap_log_env == '1');
     config.first_boot_options = options.first_boot_options;
@@ -5336,14 +5347,20 @@ int RunGame(App& app, pt::Vfs& vfs) {
     game.SetGamePlusSetting(app.settings.game.game_plus, true);
     game.SetSoundCaptions(app.settings.accessibility.sound_captions);
     game.SetFovOffset(app.settings.accessibility.fov_offset);
+    // The shader warmup screen is shown before the game's saved options are loaded.
+    // Use the system locale here so a Korean Windows install does not briefly show
+    // the English fallback before the Korean subtitle option is available.
+    const int boot_ui_language = std::clamp(pt::game::DefaultOptionsForLocale(pt::game::SystemLanguageTag()).subtitle_language, 0,
+                                            pt::game::UiAssets::kLanguageCount - 1);
     pt::game::GameSound sound(game);
     std::vector<float> captured;
-    pt::audio::AudioOutput::SetPreferSpatial(app.settings.audio.spatial);
+    pt::audio::AudioOutput::SetPreferSpatial(app.settings.audio.spatial || app.settings.audio.dolby_atmos);
     pt::audio::AudioOutput::SetPreferredDevice(app.settings.audio.output_device);
+    pt::audio::AudioOutput::SetPreferObjectSpatial(app.settings.audio.dolby_atmos);
     const bool audio_device_now = app.window && pt::devices::WaitAudio(0.25);
     bool audio_device_pending = app.window && !audio_device_now;
     if (audio_device_pending) pt::LogWarn("audio: the audio devices are still starting; the sound opens its device when they are ready");
-    if ((app.window || options.audio_offline) && sound.Init(audio_device_now, "Eng", app.settings.audio.surround || app.settings.audio.spatial)) {
+    if ((app.window || options.audio_offline) && sound.Init(audio_device_now, "Eng", app.settings.audio.surround || app.settings.audio.spatial || app.settings.audio.dolby_atmos, app.settings.audio.dolby_atmos)) {
         sound.System().SetMasterVolume(app.settings.audio.volume);
         if (options.seed) {
             sound.System().SetRandomSeed(options.seed);
@@ -5887,7 +5904,8 @@ int RunGame(App& app, pt::Vfs& vfs) {
         bool visible = PumpEvents(app, &input, running, &voice_key_press, static_cast<uint32_t>(voice_key)) || vr != nullptr;
         if (audio_device_pending && !pt::devices::AudioStarting()) {
             audio_device_pending = false;
-            const bool opened = sound.System().OpenDevice(app.settings.audio.surround || app.settings.audio.spatial);
+            const bool opened = sound.System().OpenDevice(app.settings.audio.surround || app.settings.audio.spatial || app.settings.audio.dolby_atmos,
+                                                          app.settings.audio.dolby_atmos);
             pt::LogInfo("audio: the audio devices are ready at frame {}; playback device {}", frame, opened ? "open" : "not available");
         }
         if (vr) {
@@ -5915,7 +5933,8 @@ int RunGame(App& app, pt::Vfs& vfs) {
                 pt::LogInfo("boot: shader preparation screen shown for {:.1f} s{}", on_screen, pipelines_warm ? "" : " (pipelines still being made)");
             } else {
                 ui.SetShaderScreen(std::format("pc_boot_preparing_shaders{}{}", pt::game::kPcNoteArgument,
-                                               100u * pipeline_warmup.Finished() / std::max(1u, pipeline_warmup.Total())));
+                                               100u * pipeline_warmup.Finished() / std::max(1u, pipeline_warmup.Total())),
+                                   boot_ui_language);
             }
         }
         if (boot_wait) {
@@ -8283,7 +8302,9 @@ int main(int argc, char** argv) {
     pt::RendererSettings settings;
     settings.headless = options.headless;
     settings.validation = options.validation;
-    settings.vsync = options.vsync;
+    // The renderer must start with the persisted display choice.  `options.vsync`
+    // only represents the command-line override and otherwise remains true.
+    settings.vsync = app.settings.display.vsync;
     settings.hdr = app.settings.display.hdr;
     settings.hdr_paper_white = app.settings.display.hdr_paper_white;
     settings.hdr_peak = app.settings.display.hdr_peak;

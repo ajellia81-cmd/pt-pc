@@ -346,7 +346,7 @@ int main() {
     }
     assert(missing == 0);
     for (const auto& [key, text] : tur) assert(eng.contains(key));
-    for (const char* code : {"tur", "fra", "deu", "spa", "jpn", "ita", "por", "zhs", "ara", "rus", "ukr", "ces", "pol"}) {
+    for (const char* code : {"tur", "fra", "deu", "spa", "jpn", "ita", "por", "zhs", "ara", "rus", "ukr", "ces", "pol", "kor"}) {
         const auto table = LisaDateScript::ParseText(Read(dir / "text" / (std::string(code) + ".txt")));
         for (const auto& [key, text] : eng) {
             if (!table.contains(key) || table.at(key).empty()) std::printf("%s.txt lacks %s\n", code, key.c_str());

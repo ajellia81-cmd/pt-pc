@@ -342,6 +342,10 @@ void GameUi::Update(Game& game, const InputState& input, float dt) {
     if (language_ != subtitles_.Language()) {
         subtitles_.SetLanguage(language_);
     }
+    // Non-English movie faces are created lazily.  Prepare the selected subtitle face while
+    // the UI is updating (normally during loading or when its option is changed), rather than
+    // synchronously in DrawSubtitle when the first spoken line arrives.
+    assets_.Font(UiFontType::Movie, language_);
     for (const Game::SubtitleRequest& request : game.TakeSubtitleRequests()) {
         subtitles_.Play(request.subtitle_id, request.offset_seconds, std::nullopt, request.sound);
     }
@@ -523,8 +527,13 @@ void GameUi::DrawSubtitle(ui::UiBatch& batch, const UiCanvas& canvas) {
         return;
     }
     const int language = subtitles_.Language();
-    UiFont* font = assets_.Font(UiFontType::Movie, language);
+    // The base Korean atlas is prepared before play.  Asking for coverage here
+    // is normally a no-op, but guarantees that a newly added subtitle line
+    // cannot become invisible if its glyph was not part of that initial atlas.
+    UiFont* font = assets_.FontCovering(UiFontType::Movie, language, view.text);
     if (!font) {
+        LogWarn("ui: subtitle {} is ready but the {} movie font is unavailable", view.id,
+                language == 14 ? "Korean" : "selected");
         return;
     }
     const SubtitleGeneratorSettings& generator = assets_.Generator();
@@ -557,6 +566,16 @@ void GameUi::DrawSubtitle(ui::UiBatch& batch, const UiCanvas& canvas) {
     text_style.text_space += generator.font_space;
     text_style.line_space += generator.line_space;
     ui::NormalizeSubtitleStyle(text_style);
+    if (language == 14) {
+        // The Korean face has a larger visible square than the original Japanese
+        // subtitle face at identical metrics.  Keep the original line pitch while
+        // matching the Japanese subtitle's visible size.
+        constexpr float kKoreanSubtitleScale = .82f;
+        text_style.font_width *= kKoreanSubtitleScale;
+        text_style.font_height *= kKoreanSubtitleScale;
+        text_style.text_space *= kKoreanSubtitleScale;
+        text_style.line_space = 26.0f - text_style.font_height * font->font.LineFactor();
+    }
     const glm::vec2 anchor = origin + generator.offset;
     const glm::vec2 lo_units = anchor + glm::vec2(box_min.x * size.x, box_min.y * size.y);
     const glm::vec2 hi_units = anchor + glm::vec2(box_max.x * size.x, box_max.y * size.y);
@@ -565,6 +584,21 @@ void GameUi::DrawSubtitle(ui::UiBatch& batch, const UiCanvas& canvas) {
     const glm::vec2 hi(UiCanvas::kWidth * 0.5f + std::max(lo_units.x, hi_units.x) * UiCanvas::kUnit,
                        UiCanvas::kHeight * 0.5f - std::min(lo_units.y, hi_units.y) * UiCanvas::kUnit);
     ui::TextLayout layout = ui::LayoutText(view.text, text_style, generator.auto_line_feed ? hi.x - lo.x : 0.0f);
+    if (language == 14) {
+        // Noto Sans KR keeps transparent left bearings.  The Japanese FFNT is
+        // visibly ink-aligned, so remove that bearing on every line before the
+        // original alignment code positions it.
+        layout.width = 0.0f;
+        for (ui::TextLine& line : layout.lines) {
+            if (!line.glyphs.empty()) {
+                float left = line.glyphs.front().position.x;
+                for (const ui::LaidGlyph& glyph : line.glyphs) left = std::min(left, glyph.position.x);
+                for (ui::LaidGlyph& glyph : line.glyphs) glyph.position.x -= left;
+                line.width = std::max(0.0f, line.width - left);
+            }
+            layout.width = std::max(layout.width, line.width);
+        }
+    }
     const ui::TextAlign block = generator.b_align == 3 ? Align(generator.h_align) : Align(generator.b_align);
     ui::PlaceText(layout, lo, hi, block, Align(generator.h_align), Align(generator.v_align), true);
     const glm::vec2 full = canvas.extent;
@@ -1105,8 +1139,10 @@ void GameUi::Record(gpu::CommandList& cmd, gpu::ImageViewHandle target, gpu::Ext
     }
     layers.push_back({kSubliminalStringPriority, [&] { DrawSubliminal(batch, true); }});
     layers.push_back({kSubliminalNoisePriority, [&] { DrawSubliminal(batch, false); }});
-    layers.push_back({strong_subtitles_ ? kStrongSubtitlePriority : kSubtitlePriority, [&] { DrawSubtitle(batch, canvas); }});
-    if (!sound_captions_.empty() && !vr_hud_) {
+    // Coffee with Lisa owns its dialogue layer.  Keep the suspended hallway's
+    // queued subtitles and sound captions from being rendered underneath it.
+    if (!lisa_date_) layers.push_back({strong_subtitles_ ? kStrongSubtitlePriority : kSubtitlePriority, [&] { DrawSubtitle(batch, canvas); }});
+    if (!lisa_date_ && !sound_captions_.empty() && !vr_hud_) {
         layers.push_back({strong_subtitles_ ? kStrongSubtitlePriority : kSubtitlePriority, [&] { DrawSoundCaptions(batch, canvas, full); }});
     }
     if (lisa_vignette_ > 0.0f && !vr_hud_) {

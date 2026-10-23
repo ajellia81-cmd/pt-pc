@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "engine/audio/output_device.h"
+#include "engine/audio/spatial_audio.h"
 
 struct SDL_AudioStream;
 
@@ -19,15 +20,17 @@ public:
     static void SetPreferSpatial(bool prefer) { prefer_spatial_ = prefer; }
     static void SetPreferredDevice(std::string name) { preferred_device_ = std::move(name); }
     static const std::string& PreferredDevice() { return preferred_device_; }
+    static void SetPreferObjectSpatial(bool prefer) { prefer_object_spatial_ = prefer; }
 
     using RenderFunction = std::function<void(float* interleaved, uint32_t frames, uint32_t channels)>;
+    using SpatialRenderFunction = std::function<void(float* interleaved, uint32_t frames, uint32_t channels, SpatialAudioSink* sink)>;
 
     AudioOutput();
     ~AudioOutput();
     AudioOutput(const AudioOutput&) = delete;
     AudioOutput& operator=(const AudioOutput&) = delete;
 
-    bool Open(uint32_t sample_rate, bool surround, RenderFunction render);
+    bool Open(uint32_t sample_rate, bool surround, RenderFunction render, SpatialRenderFunction spatial_render = {});
     void Close();
     bool IsOpen() const { return stream_ != nullptr || spatial_ != nullptr; }
     uint32_t Channels() const { return channels_; }
@@ -53,6 +56,7 @@ private:
     uint64_t next_poll_ns_ = 0;
     static inline bool prefer_spatial_ = false;
     static inline std::string preferred_device_;
+    static inline bool prefer_object_spatial_ = false;
 };
 
 }

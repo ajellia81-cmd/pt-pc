@@ -245,8 +245,12 @@ add_dependencies(pt pt_shaders)
 if(WIN32)
   # the same shaders as DXIL for the D3D12 backend (cmake/D3D12Shaders.cmake); the Vulkan SPIR-V above is unchanged; the D3D12 backend loads these
   option(PT_D3D12_SHADERS "Translate the shaders to DXIL (GLSL -> SPIR-V -> SPIRV-Cross -> DXC) for the D3D12 backend" ON)
-  if(PT_D3D12_SHADERS)
+  # v1.0.5's source archive omits the local SPIR-V-to-HLSL helper.  Keep the normal Vulkan build usable instead of
+  # failing configuration; a complete source checkout still enables the optional D3D12 shader path automatically.
+  if(PT_D3D12_SHADERS AND EXISTS "${CMAKE_SOURCE_DIR}/tools/dx12/spirv_to_hlsl.cpp")
     include(cmake/D3D12Shaders.cmake)
+  elseif(PT_D3D12_SHADERS)
+    message(WARNING "D3D12 shaders disabled: tools/dx12/spirv_to_hlsl.cpp is not present in this source checkout")
   endif()
   # the D3D12 renderer backend and its test (docs/rhi.md, stage b); the game does not link it yet
   option(PT_D3D12_BACKEND "Build the Direct3D 12 renderer backend library and its test" ON)
@@ -404,6 +408,12 @@ if(WIN32)
     "{\n  \"file_format_version\": \"1.1.2\",\n  \"layer\": {\n    \"name\": \"VK_LAYER_PT_null_swapchain_test\",\n    \"type\": \"GLOBAL\",\n    \"library_path\": \".\\\\pt_null_swapchain_layer.dll\",\n    \"api_version\": \"1.3.0\",\n    \"implementation_version\": \"1\",\n    \"description\": \"pt-port test: faults on vkDestroySwapchainKHR(VK_NULL_HANDLE)\",\n    \"functions\": { \"vkNegotiateLoaderLayerInterfaceVersion\": \"PtNullSwapchainNegotiate\" },\n    \"disable_environment\": { \"DISABLE_PT_NULL_SWAPCHAIN_LAYER\": \"1\" },\n    \"enable_environment\": { \"ENABLE_PT_NULL_SWAPCHAIN_LAYER\": \"1\" }\n  }\n}\n")
 endif()
 
+add_executable(pt_korean_text_layout_test tests/korean_text_layout_test.cpp)
+target_link_libraries(pt_korean_text_layout_test PRIVATE pt_engine)
+if(MSVC)
+  target_compile_options(pt_korean_text_layout_test PRIVATE /utf-8)
+endif()
+
 # the full screen blur's pulse start per game frame (0x9231D0), src/game/blur_sway.h
 add_executable(pt_blur_sway_test tests/blur_sway_test.cpp)
 target_link_libraries(pt_blur_sway_test PRIVATE pt_engine)
@@ -419,8 +429,10 @@ endif()
 # the installer's ASCII file name rules (setup_core.h) are checked under a Turkish locale too
 target_include_directories(pt_unicode_paths_test PRIVATE installer/Native)
 if(WIN32)
-  target_sources(pt_unicode_paths_test PRIVATE tests/unicode_paths_test.rc)
-  set_source_files_properties(tests/unicode_paths_test.rc PROPERTIES OBJECT_DEPENDS "${CMAKE_SOURCE_DIR}/tests/unicode_paths_test.manifest")
+  if(EXISTS "${CMAKE_SOURCE_DIR}/tests/unicode_paths_test.rc")
+    target_sources(pt_unicode_paths_test PRIVATE tests/unicode_paths_test.rc)
+    set_source_files_properties(tests/unicode_paths_test.rc PROPERTIES OBJECT_DEPENDS "${CMAKE_SOURCE_DIR}/tests/unicode_paths_test.manifest")
+  endif()
   target_link_options(pt_unicode_paths_test PRIVATE /MANIFEST:NO)
   target_link_libraries(pt_unicode_paths_test PRIVATE shell32)
 endif()
@@ -552,7 +564,9 @@ if(MSVC)
 endif()
 
 target_compile_definitions(pt_engine PUBLIC PT_FONT_DIR="${CMAKE_SOURCE_DIR}/assets/fonts")
-add_custom_command(TARGET pt POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/assets/fonts" "$<TARGET_FILE_DIR:pt>/fonts")
+foreach(game_target pt pt_release)
+  add_custom_command(TARGET ${game_target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/assets/fonts" "$<TARGET_FILE_DIR:${game_target}>/fonts")
+endforeach()
 # The port's data pack beside the game (src/engine/fs/data_pack.h): the bonus scene's files of assets/lisa_date packed by
 # tools/make_data_pack.py whenever one of them changes, or a tree without that folder takes the pack it ships (assets/extras.pak).
 # No loose copy of the folder goes beside the game; the one older builds left there is removed.
@@ -579,8 +593,10 @@ endif()
 file(GLOB PT_FONT_LICENSES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/assets/fonts/OFL-*.txt")
 foreach(license ${PT_FONT_LICENSES})
   get_filename_component(license_name "${license}" NAME)
-  add_custom_command(TARGET pt POST_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:pt>/licenses"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${license}" "$<TARGET_FILE_DIR:pt>/licenses/${license_name}" VERBATIM)
+  foreach(game_target pt pt_release)
+    add_custom_command(TARGET ${game_target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${game_target}>/licenses"
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different "${license}" "$<TARGET_FILE_DIR:${game_target}>/licenses/${license_name}" VERBATIM)
+  endforeach()
 endforeach()
 
 add_executable(pt_mouse_render_test tests/mouse_render_test.cpp)
@@ -659,7 +675,7 @@ if(WIN32)
   target_include_directories(pt_discord_presence_test PRIVATE src)
   target_compile_definitions(pt_discord_presence_test PRIVATE NOMINMAX)
   add_executable(pt_spatial_output_test tests/spatial_output_test.cpp)
-  target_include_directories(pt_spatial_output_test PRIVATE src)
+  target_include_directories(pt_spatial_output_test PRIVATE src ${glm_SOURCE_DIR})
   target_compile_definitions(pt_spatial_output_test PRIVATE NOMINMAX)
   target_link_libraries(pt_spatial_output_test PRIVATE ole32)
 endif()
