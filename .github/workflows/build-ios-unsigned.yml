@@ -281,7 +281,7 @@ jobs:
               names = archive.namelist()
           # Public artifact contains the engine only. Never upload extracted game data.
           from pathlib import PurePosixPath
-          allowed_root = {'pt', 'PT', 'Info.plist', 'PkgInfo', 'Assets.car', 'apple-build-inputs.txt', 'build-provenance.json', 'embedded.mobileprovision'}
+          allowed_root = {'pt', 'PT', 'Info.plist', 'PkgInfo', 'Assets.car', 'apple-build-inputs.txt', 'pt-build-manifest.json', 'embedded.mobileprovision'}
           allowed_dirs = {'fonts', 'shaders', 'voice', 'licenses', 'Frameworks', '_CodeSignature'}
           forbidden_suffixes = {'.pkg', '.psarc', '.fpk', '.fpkd', '.dat', '.pck', '.pak', '.wem', '.bnk', '.uif', '.uia', '.uilb', '.dds'}
           for name in names:
