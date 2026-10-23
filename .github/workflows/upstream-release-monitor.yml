@@ -23,8 +23,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           UPSTREAM: LoreanXavier/pt-pc
-          CURRENT_PORT_BASELINE: v1.0.7
-          OVERLAY_BRANCH: feature/strict-v107-korean-atmos
+          CURRENT_PORT_BASELINE: v1.0.8
+          OVERLAY_BRANCH: feature/v108-korean-atmos
           TARGET: ${{ github.repository }}
         shell: bash
         run: |
