@@ -42,7 +42,7 @@ jobs:
           fi
 
           git fetch --tags origin
-          git fetch origin "${OVERLAY_BRANCH}"
+          git fetch origin "${OVERLAY_BRANCH}:refs/remotes/origin/${OVERLAY_BRANCH}"
           git remote add upstream "https://github.com/${UPSTREAM}.git"
           git fetch upstream "refs/tags/${tag}:refs/tags/${tag}"
           git checkout -B "${branch}" "${tag}"
