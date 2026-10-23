@@ -2,9 +2,12 @@
 #include "game/lisa_date/lisa_date_script.h"
 
 #include <cstdlib>
+#include <fstream>
 #include <format>
+#include <iterator>
 #include <sstream>
 
+#include "engine/core/resource_path.h"
 #include "engine/fs/data_pack.h"
 
 namespace pt::game {
@@ -322,7 +325,18 @@ const LisaDateChoice* LisaDateRun::CurrentChoice() const {
     return c->target >= 0 && c->target < static_cast<int>(script_.Choices().size()) ? &script_.Choices()[static_cast<size_t>(c->target)] : nullptr;
 }
 
-std::optional<std::vector<uint8_t>> LisaDateFile(std::string_view name) { return ExtrasPack().Read(name); }
+std::optional<std::vector<uint8_t>> LisaDateFile(std::string_view name) {
+    // The stock v1.0.8 runtime keeps Coffee with Lisa in extras.pak.  Korean is
+    // an add-on language, so ship only its text beside the executable instead
+    // of rewriting the upstream pack (which would make future updates brittle).
+    // A loose Korean file wins when present; every original asset remains read
+    // from the unmodified pack.
+    if (name == "text/kor.txt") {
+        std::ifstream loose(ExecutableDir() / "lisa_date" / "text" / "kor.txt", std::ios::binary);
+        if (loose) return std::vector<uint8_t>(std::istreambuf_iterator<char>(loose), {});
+    }
+    return ExtrasPack().Read(name);
+}
 
 std::string LisaDatePicturePath(std::string_view name) { return PackPath(name); }
 

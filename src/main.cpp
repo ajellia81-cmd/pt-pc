@@ -4696,7 +4696,12 @@ private:
         return steps;
     }
     static std::vector<int> HdrPeakSteps(int current) {
-        std::vector<int> steps = {0, 400, 500, 600, 700, 800, 900, 1000, 1200, 1400, 1600, 1800, 2000, 2500, 3000, 3500, 4000};
+        // Peak luminance is deliberately a coarse, display-oriented control:
+        // one click is always 100 nits, from 100 through 4000.  Keep an old
+        // non-standard saved value selectable so an existing profile is never
+        // silently changed when upgrading.
+        std::vector<int> steps = {0};
+        for (int nits = 100; nits <= 4000; nits += 100) steps.push_back(nits);
         if (std::find(steps.begin(), steps.end(), current) == steps.end()) steps.push_back(current);
         return steps;
     }

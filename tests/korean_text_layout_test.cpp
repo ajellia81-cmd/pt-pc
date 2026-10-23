@@ -1,6 +1,7 @@
 #include <cstdio>
 
 #include "engine/core/korean_text.h"
+#include "engine/core/japanese_text.h"
 #include "engine/core/localized_text.h"
 #include "engine/ui/ffnt.h"
 #include "engine/ui/text_layout.h"
@@ -45,6 +46,15 @@ int main() {
     pc.font = &font;
     pc.font_width = pc.font_height = 20.0f;
     int failures = 0;
+    // Japanese is the Korean localization's source language.  Every source
+    // menu/transcript key must have a Korean value; this catches newly added
+    // upstream PC-settings and Museum entries before a release is packaged.
+    for (const pt::japanese::Text& entry : pt::japanese::kMenu) {
+        if (pt::korean::Menu(entry.key).empty()) {
+            std::printf("FAIL: missing Korean source-text key: %.*s\n", int(entry.key.size()), entry.key.data());
+            ++failures;
+        }
+    }
     // Keep newly introduced upstream PC-settings rows from silently falling
     // back to English when the port is updated.
     for (const char* key : {"pc_photo_reset_settings", "pc_note_photo_reset_settings"}) {
