@@ -146,6 +146,10 @@ jobs:
           replace(options_menu, "        set(id, kLanguageKeys[language_index]);", "        view_.State(id).font_language.reset();\n        view_.State(id).font_scale.reset();\n        set(id, kLanguageKeys[language_index]);\n        if (language_index == UiAssets::kLanguageCount && text_language_ == 4) {\n            view_.State(id).font_language = korean::LabelFontLanguage(text_language_);\n            view_.State(id).font_scale = korean::LabelFontScale(text_language_);\n        }")
           replace(localized, " return out;", " if (language == 8) out += \"韩国语韓国語\";\n return out;")
           game_ui = root / 'src/game/ui/game_ui.cpp'
+          # Restore original options as the entry page, including the settings shortcut.
+          # Requests made while the menu is already open still enter PC settings normally.
+          replace(game_ui, 'OpenMenu(game, false, pc_request ? OptionsMenu::Page::Pc : OptionsMenu::Page::Original);', 'OpenMenu(game, false, OptionsMenu::Page::Original);')
+          assert 'OpenMenu(game, false, pc_request ? OptionsMenu::Page::Pc : OptionsMenu::Page::Original);' not in game_ui.read_text()
           replace(game_ui, "#include \"game/ui/game_ui.h\"", "#include \"game/ui/game_ui.h\"\n#include \"game/ui/korean_presentation.h\"")
           replace(game_ui, "UiFont* font = assets_.Font(UiFontType::Movie, language);", "UiFont* font = assets_.FontCovering(UiFontType::Movie, language, view.text);")
           replace(game_ui, "    ui::NormalizeSubtitleStyle(text_style);", "    ui::NormalizeSubtitleStyle(text_style);\n    korean::MatchSubtitleStyle(text_style, language);")
