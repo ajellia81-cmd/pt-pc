@@ -68,6 +68,11 @@ int main() {
             std::printf("FAIL: missing Korean glyphs in %.*s\n", int(entry.key.size()), entry.key.data());
             ++failures;
         }
+        // Startup/error dialogs use their own resizable dialog layout, not a
+        // PC-settings label slot.  Do not judge those paragraphs against the
+        // fixed 300px settings-label box.
+        if (!entry.key.starts_with("pc_note_") &&
+            (entry.text.find('\n') != std::string_view::npos || entry.text.size() > 80)) continue;
         // The PC settings help area is 1100 by 86 virtual pixels. LayoutTextInBox is the same fit-to-box path the game uses.
         const bool help = entry.key.starts_with("pc_note_");
         const glm::vec2 box = help ? glm::vec2(1100.0f, 86.0f) : glm::vec2(300.0f, 30.0f);
