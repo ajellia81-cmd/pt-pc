@@ -56,6 +56,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--baseline", type=Path, required=True)
     parser.add_argument("--build", type=Path, required=True)
+    parser.add_argument("--korean-lisa-text", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
 
@@ -94,7 +95,7 @@ def main() -> None:
         if notice.is_file():
             (runtime / "licenses").mkdir(parents=True, exist_ok=True)
             shutil.copy2(notice, runtime / "licenses" / notice.name)
-        korean_text = args.build / "lisa_date" / "text" / "kor.txt"
+        korean_text = args.korean_lisa_text
         if not korean_text.is_file():
             raise RuntimeError(f"missing Korean Coffee with Lisa text: {korean_text}")
         (runtime / "lisa_date" / "text").mkdir(parents=True, exist_ok=True)
