@@ -1,4 +1,4 @@
-name: Build P.T. iPhone IPA
+name: Build P.T. iPhone Test IPA
 on:
   workflow_dispatch:
   push:
@@ -168,6 +168,19 @@ jobs:
                   face = instantiateVariableFont(face, {'wght': 400}, inplace=False)
                   face.save(path)
                   print('Instantiated regular font:', name)
+          # Allow the existing controller/system haptics while SDL records microphone input.
+          apple_h = root / 'src/engine/platform/apple_host.h'
+          apple_m = root / 'src/engine/platform/apple_host.m'
+          replace(apple_h, "bool pt_apple_is_active(void);", "bool pt_apple_is_active(void);\nbool pt_apple_allow_recording_haptics(void);")
+          replace(apple_m, "#import <Foundation/Foundation.h>", "#import <Foundation/Foundation.h>\n#import <AVFAudio/AVFAudio.h>\n\nbool pt_apple_allow_recording_haptics(void) {\n    @autoreleasepool {\n        AVAudioSession *session = [AVAudioSession sharedInstance];\n        NSError *error = nil;\n        BOOL ok = [session setAllowHapticsAndSystemSoundsDuringRecording:YES error:&error];\n        if (!ok) NSLog(@\"P.T. recording haptics: %@\", error);\n        return ok && session.allowHapticsAndSystemSoundsDuringRecording;\n    }\n}\n")
+          replace(apple_m, "bool pt_apple_is_active(void) { return true; }", "bool pt_apple_is_active(void) { return true; }\nbool pt_apple_allow_recording_haptics(void) { return true; }")
+          cmake = root / 'CMakeLists.txt'
+          cmake.write_text(cmake.read_text() + '\nif(PT_IOS)\n  target_link_libraries(pt_engine PUBLIC "-framework AVFAudio")\nendif()\n')
+          microphone_cpp = root / 'src/engine/voice/microphone.cpp'
+          replace(microphone_cpp, "#include \"engine/core/log.h\"", "#include \"engine/core/log.h\"\n#if PT_IOS\n#include \"engine/platform/apple_host.h\"\n#endif")
+          replace(microphone_cpp, "    stream_ = SDL_OpenAudioDeviceStream(device, &spec, nullptr, nullptr);", "#if PT_IOS\n    pt_apple_allow_recording_haptics();\n#endif\n    stream_ = SDL_OpenAudioDeviceStream(device, &spec, nullptr, nullptr);")
+          replace(microphone_cpp, "    SDL_ResumeAudioStreamDevice(stream_);\n    LogInfo(\"microphone: recording at {} Hz\", sample_rate);", "#if PT_IOS\n    LogInfo(\"microphone: recording haptics allowed {}\", pt_apple_allow_recording_haptics());\n#endif\n    SDL_ResumeAudioStreamDevice(stream_);\n    LogInfo(\"microphone: recording at {} Hz\", sample_rate);")
+          print('PASS: microphone Open configures recording haptics before and after SDL stream creation')
           main = root / 'src/main.cpp'
           replace(main, 'void ApplyFullscreen(App& app) {\n    if (!app.window) {\n        return;\n    }\n    const int mode = app.settings.display.fullscreen;\n    if (mode == 2) {\n        if (const SDL_DisplayMode* desktop = SDL_GetDesktopDisplayMode(SDL_GetDisplayForWindow(app.window))) {\n            SDL_SetWindowFullscreenMode(app.window, desktop);\n        }\n    } else {\n        SDL_SetWindowFullscreenMode(app.window, nullptr);\n    }\n    SDL_SetWindowFullscreen(app.window, mode != 0);\n}', 'void ApplyFullscreen(App& app) {\n    if (!app.window) {\n        return;\n    }\n#if PT_IOS\n    const bool fullscreen = app.settings.display.fullscreen != 0;\n    SDL_SetWindowFullscreenMode(app.window, nullptr);\n    SDL_SetWindowFullscreen(app.window, fullscreen);\n    if (fullscreen) {\n        int width = 0, height = 0;\n        if (SDL_GetWindowSizeInPixels(app.window, &width, &height) && width > 0 && height > 0) {\n            app.options.width = static_cast<uint32_t>(width);\n            app.options.height = static_cast<uint32_t>(height);\n            app.renderer.SetRenderExtent({app.options.width, app.options.height});\n        }\n    } else {\n        app.renderer.SetRenderExtent({1920, 1080});\n    }\n    return;\n#else\n    const int mode = app.settings.display.fullscreen;\n    if (mode == 2) {\n        if (const SDL_DisplayMode* desktop = SDL_GetDesktopDisplayMode(SDL_GetDisplayForWindow(app.window))) {\n            SDL_SetWindowFullscreenMode(app.window, desktop);\n        }\n    } else {\n        SDL_SetWindowFullscreenMode(app.window, nullptr);\n    }\n    SDL_SetWindowFullscreen(app.window, mode != 0);\n#endif\n}')
           replace(main, '        app.settings.display.fullscreen = 1;\n', '')
@@ -185,13 +198,14 @@ jobs:
 
           replace(main, 'app.renderer.SetRenderExtent({1920, 1080});', 'if (app.settings.display.fullscreen != 0) {\n        app.renderer.SetRenderExtent({app.options.width, app.options.height});\n    } else {\n        app.renderer.SetRenderExtent({1920, 1080});\n    }')
           replace(main, '        } else if (event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) {\n            app.renderer.Resize(static_cast<uint32_t>(event.window.data1), static_cast<uint32_t>(event.window.data2));\n        }', '        } else if (event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) {\n            const uint32_t pixel_width = static_cast<uint32_t>(std::max(event.window.data1, 0));\n            const uint32_t pixel_height = static_cast<uint32_t>(std::max(event.window.data2, 0));\n            app.renderer.Resize(pixel_width, pixel_height);\n#if PT_IOS\n            if (app.settings.display.fullscreen != 0 && pixel_width > 0 && pixel_height > 0) {\n                app.options.width = pixel_width;\n                app.options.height = pixel_height;\n                app.renderer.SetRenderExtent({pixel_width, pixel_height});\n                pt::LogInfo("iPhone fullscreen resize: {}x{} pixels", pixel_width, pixel_height);\n            }\n#endif\n        }')
-          replace(main, '        pt::game::Game& view = theater ? theater->theater->Sandbox() : game;', '#if PT_IOS\n        // The post-ending street has the largest simultaneous scene allocation.  Keep every\n        // other fullscreen scene at native 2868x1320, but render this optional walk at 2/3\n        // scale (1912x880) while preserving the exact device aspect ratio.  The swapchain\n        // remains fullscreen, so this does not add letterboxing or alter other display modes.\n        if (app.settings.display.fullscreen != 0) {\n            const VkExtent2D ios_render_extent = game.StreetWalkActive() && !theater\n                ? VkExtent2D{1912, 880}\n                : VkExtent2D{app.options.width, app.options.height};\n            app.renderer.SetRenderExtent(ios_render_extent);\n        }\n#endif\n        pt::game::Game& view = theater ? theater->theater->Sandbox() : game;')
+          replace(main, "    float applied_volume = -1.0f;\n    while (running) {", "    float applied_volume = -1.0f;\n#if PT_IOS\n    bool ios_ending_memory_mode = false;\n#endif\n    while (running) {\n#if PT_IOS\n        // Resize before simulation can start loading the ending scene.\n        auto& ios_view = theater ? theater->theater->Sandbox() : game;\n        const int ios_step = ios_view.Controller().Step();\n        const int ios_requested = ios_view.Controller().RequestedStep();\n        const bool ios_ending = ios_view.StreetWalkActive() || ios_view.StreetPending() ||\n            ios_view.Floor().IsCurrentFloorName(\"ending\") ||\n            (ios_step >= 21 && ios_step <= 28) || (ios_requested >= 21 && ios_requested <= 28);\n        if (ios_ending != ios_ending_memory_mode) {\n            ios_ending_memory_mode = ios_ending;\n            pt::LogInfo(\"iOS ending memory mode {} at step {} requested {}\", ios_ending, ios_step, ios_requested);\n        }\n        if (app.settings.display.fullscreen != 0) {\n            const VkExtent2D ios_extent = ios_ending\n                ? VkExtent2D{app.options.width * 2 / 3, app.options.height * 2 / 3}\n                : VkExtent2D{app.options.width, app.options.height};\n            app.renderer.SetRenderExtent(ios_extent);\n        }\n#endif")
           # Hide only the iPhone menu entries explicitly approved for removal.
           (root / 'src/game/ui/ios_settings_filter.h').write_text("#pragma once\n#include \"game/ui/pc_settings.h\"\n#include <algorithm>\n#include <array>\nnamespace pt::game {\ninline constexpr std::array<std::string_view, 17> kIosHiddenSettingLabels = {\n    \"pc_upscaler\", \"pc_quality\", \"pc_sharpness\", \"pc_dlss_model\", \"pc_frame_generation\",\n    \"pc_enhanced_textures\", \"pc_vr\", \"pc_vr_mode\", \"pc_vr_flashlight\", \"pc_vr_turn\",\n    \"pc_rt_contact\", \"pc_ray_quality\",\n    \"pc_display_mode\", \"pc_resolution\", \"pc_vsync\", \"pc_mouse\", \"pc_livesplit\"\n};\ninline std::vector<PcSettingSection> FilterIosSettings(std::vector<PcSettingSection> sections) {\n    for (auto& section : sections) {\n        std::erase_if(section.rows, [](const PcSettingRow& row) {\n            return std::find(kIosHiddenSettingLabels.begin(), kIosHiddenSettingLabels.end(), row.label)\n                   != kIosHiddenSettingLabels.end();\n        });\n        if (section.title == \"pc_section_upscaling\") section.title = \"pc_graphics\";\n    }\n    std::erase_if(sections, [](const PcSettingSection& section) { return section.rows.empty(); });\n    return sections;\n}\n}\n")
           replace(main, '#include "game/ui/pc_settings.h"', '#include "game/ui/pc_settings.h"\n#include "game/ui/ios_settings_filter.h"')
           replace(main, '    std::vector<pt::game::PcSettingSection> Sections() override {', "    std::vector<pt::game::PcSettingSection> Sections() override {\n#if PT_IOS\n        return pt::game::FilterIosSettings(AllSections());\n#else\n        return AllSections();\n#endif\n    }\n\n    std::vector<pt::game::PcSettingSection> AllSections() {")
           # With display controls removed, keep native resolution and synchronized presentation.
           replace(main, '        app.settings.vr.enabled = false;', '        app.settings.vr.enabled = false;\n        app.settings.display.fullscreen = 1;\n        app.settings.display.vsync = true;\n        app.settings.extras.livesplit = false;')
+          replace(main, "        app.settings.vr.enabled = false;", "        app.settings.vr.enabled = false;\n        // Test build: bypass browser/gallery locks without rewriting save progress.\n        app.options.release_locks = false;\n        pt::LogInfo(\"iOS TEST: all loop and museum entries unlocked; saved progress preserved\");")
           # Museum/mod helper language clamps must include the added Korean slot.
           text = main.read_text()
           old_clamp = 'std::clamp(game_.Options().subtitle_language, 0, 11)'
@@ -202,8 +216,8 @@ jobs:
           assert 'const bool fullscreen = app.settings.display.fullscreen != 0;' in main.read_text()
           assert 'app.renderer.SetRenderExtent({app.options.width, app.options.height});' in main.read_text()
           assert 'iPhone fullscreen resize: {}x{} pixels' in main.read_text()
-          assert 'game.StreetWalkActive() && !theater' in main.read_text()
-          assert 'VkExtent2D{1912, 880}' in main.read_text()
+          assert 'ios_requested >= 21 && ios_requested <= 28' in main.read_text()
+          assert 'app.options.width * 2 / 3' in main.read_text()
           assert 'namespace pt::korean' in korean.read_text()
           assert korean_font.is_file()
           assert 'language == 12 ? "Noto Sans KR"' in ui_assets_cpp.read_text()
@@ -311,7 +325,7 @@ jobs:
           shasum -a 256 package/PT-iPhone-unsigned.ipa
       - uses: actions/upload-artifact@v4
         with:
-          name: pt-iphone-unsigned
+          name: pt-iphone-test-unlocked
           path: package/PT-iPhone-unsigned.ipa
           retention-days: 7
           if-no-files-found: error
