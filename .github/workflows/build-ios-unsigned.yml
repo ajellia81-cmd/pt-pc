@@ -273,6 +273,8 @@ jobs:
         run: |
           mkdir -p package/Payload
           ditto --norsrc --noextattr --noqtn source/build/ios-arm64/pt.app package/Payload/PT.app
+          # Dependency sidecars are build metadata, not runtime shaders.
+          python3 -c "from pathlib import Path; [p.unlink() for p in Path('package/Payload/PT.app/shaders').glob('*.spv.d')]"
           (cd package && ditto -c -k --keepParent --norsrc --noextattr --noqtn Payload PT-iPhone-unsigned.ipa)
           python3 - <<'PY'
           import zipfile
@@ -293,13 +295,13 @@ jobs:
               assert relative, 'Invalid bundle entry'
               assert path.suffix.lower() not in forbidden_suffixes, 'Game data must never be published'
               if len(relative) == 1:
-                  assert relative[0] in allowed_root or (relative[0].startswith('AppIcon') and path.suffix == '.png'), 'Unexpected bundle root file'
+                  assert relative[0] in allowed_root or (relative[0].startswith('AppIcon') and path.suffix == '.png'), f'Unexpected bundle root file: {relative[0]}'
               else:
                   assert relative[0] in allowed_dirs, 'Unexpected bundle resource directory'
                   if relative[0] == 'fonts':
                       assert path.suffix.lower() in {'.ttf', '.otf', '.txt'}, 'Unexpected font resource'
                   if relative[0] == 'shaders':
-                      assert path.suffix.lower() == '.spv', 'Unexpected shader resource'
+                      assert path.suffix.lower() == '.spv', f'Unexpected shader resource: {path.name}'
           print('PASS: public engine-only IPA allowlist; no game packages or extracted game assets')
           assert 'Payload/PT.app/Info.plist' in names, 'IPA is missing Payload/PT.app/Info.plist'
           assert 'Payload/PT.app/fonts/NotoSansKR.ttf' in names, 'IPA is missing the Korean font'
